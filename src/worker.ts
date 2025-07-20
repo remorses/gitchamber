@@ -120,6 +120,8 @@ export class RepoCache extends DurableObject {
     const searchQuery = decodeURIComponent(params.query);
 
     // Get both snippet and full content to find line numbers
+    // SQLite snippet() extracts text around matches: snippet(table, column, start_mark, end_mark, ellipsis, max_tokens)
+    // -1 means use all columns, '' for no highlighting marks, '...' as ellipsis, 64 max tokens
     const rows = [
       ...this.sql.exec(
         `SELECT
@@ -137,16 +139,17 @@ export class RepoCache extends DurableObject {
     return json(
       rows.map((r) => {
         const content = r.content as string;
+        // Remove HTML markup and clean up snippet
         const snippet = (r.snippet as string).replace(/<\/?mark>/g, "");
 
-        // Find line number where the match occurs
-        const lineNumber = findLineNumberInContent(content, searchQuery);
+        // Remove ... only from start/end of snippet before searching for line numbers
+        const cleanSnippet = snippet.replace(/^\.\.\.|\.\.\.$/, "");
+        const lineNumber = findLineNumberInContent(content, cleanSnippet);
 
         // Create gitchamber.com URL
         const url = `https://gitchamber.com/repos/${params.owner}/${params.repo}/${params.branch}/file/${r.path}${lineNumber ? `?start=${lineNumber}` : ""}`;
 
         return {
-          path: r.path,
           snippet,
           url,
           lineNumber,
@@ -343,23 +346,26 @@ const notFound = () => new Response("Not found", { status: 404 });
 
 function findLineNumberInContent(
   content: string,
-  searchQuery: string,
+  searchSnippet: string,
 ): number | null {
   try {
-    const lines = content.split("\n");
+    if (!content) {
+      throw new Error("Content to search snippet is empty");
+    }
+    // Find the snippet in the content (case-sensitive, multi-line matching)
+    const index = content.indexOf(searchSnippet);
 
-    // Simple search - find first line containing the search term
-    // This is a basic implementation; could be enhanced with regex matching
-    const searchTerm = searchQuery.toLowerCase();
-
-    for (let i = 0; i < lines.length; i++) {
-      if (lines[i].toLowerCase().includes(searchTerm)) {
-        return i + 1; // Return 1-based line number
-      }
+    if (index === -1) {
+      return null;
     }
 
-    return null;
-  } catch {
+    // Count newlines before the found index to determine line number
+    const beforeMatch = content.substring(0, index);
+    const lineNumber = beforeMatch.split('\n').length;
+
+    return lineNumber;
+  } catch(e) {
+    console.error("Error finding line number:", e);
     return null;
   }
 }
