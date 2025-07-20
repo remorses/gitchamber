@@ -1,157 +1,166 @@
-# GitChamber
+<div align='center' className='w-full'>
+    <br/>
+    <br/>
+    <br/>
+    <h1>gitchamber</h1>
+    <p>search and read files in GitHub repositories without worrying about rate limits</p>
+    <br/>
+    <br/>
+</div>
 
-A high-performance GitHub repository caching service built with Cloudflare Workers and Durable Objects. GitChamber provides instant access to repository files with intelligent caching, full-text search, and a clean REST API.
+High-performance GitHub repository caching service built with Cloudflare Workers and Durable Objects. Provides instant file access, full-text search, and REST API for GitHub repositories.
 
-## 🚀 Features
+## Features
 
-- **Instant File Access**: Cache entire GitHub repositories for lightning-fast file retrieval
-- **Full-Text Search**: Search through repository content using SQLite FTS (Full-Text Search)
-- **Smart Caching**: Configurable TTL with automatic cache refresh when expired
-- **Type-Safe API**: Built with Spiceflow and Zod for robust TypeScript support
-- **Scalable Architecture**: Leverages Cloudflare's global edge network and Durable Objects
+- Instant file access via repository caching
+- Full-text search using SQLite FTS
+- Configurable TTL with automatic cache refresh
+- Global edge deployment via Cloudflare Workers
+- Per-repository isolation using Durable Objects
 
-## 🏗️ Architecture
+## Architecture
 
-GitChamber uses a two-tier architecture:
+Two-tier system:
 
-1. **Worker Router**: Routes requests to the appropriate repository cache instance
-2. **Durable Object (RepoCache)**: Handles per-repository caching, storage, and search
+1. Worker router handles request routing
+2. Durable Object (RepoCache) manages per-repository caching and storage
 
-### How It Works
+When accessed, repositories are downloaded as tar.gz archives from GitHub, extracted, and stored in SQLite with FTS indexing. Cache refreshes based on configurable TTL (default: 6 hours). Data is automatically cleaned up after 24 hours of inactivity.
 
-1. When a repository is first accessed, GitChamber downloads the tar.gz archive from GitHub
-2. Files are extracted and stored in SQLite with content indexed for full-text search
-3. Subsequent requests are served instantly from the cache
-4. Cache automatically refreshes based on configurable TTL (default: 6 hours)
+## API Endpoints
 
-## 📡 API Endpoints
-
-All endpoints follow the pattern: `https://gitchamber.com/repos/:owner/:repo/:branch/...`
+Base URL: `https://gitchamber.com/repos/:owner/:repo/:branch/`
 
 ### List Files
+
 ```
-GET /repos/:owner/:repo/:branch/files
+GET /files
 ```
-Returns a JSON array of all file paths in the repository.
+
+Returns JSON array of all file paths.
 
 ### Get File Content
+
 ```
-GET /repos/:owner/:repo/:branch/file/*filepath
+GET /file/*filepath[?showLineNumbers=true&start=N&end=M]
 ```
-Returns the raw content of the specified file.
+
+Returns file content. Optional parameters:
+
+- `showLineNumbers`: Add line numbers
+- `start`: Start line number
+- `end`: End line number (defaults to start+49 if only start provided)
 
 ### Search Repository
-```
-GET /repos/:owner/:repo/:branch/search/:query
-```
-Search through repository content using full-text search. Returns matching files with snippets showing the context of matches.
 
-## 🔧 Example Usage
+```
+GET /search/:query
+```
 
-### List files in remorses/fumabase repository
+Full-text search returning markdown-formatted results with file paths, snippets, and line numbers.
+
+## Usage Examples
+
 ```bash
-curl "https://gitchamber.com/repos/remorses/fumabase/main/files"
-```
-
-### Read a specific file (cloudflare-tunnel/README.md)
-```bash
-curl "https://gitchamber.com/repos/remorses/fumabase/main/file/cloudflare-tunnel/README.md"
-```
-
-### Search for "markdown" in the repository
-```bash
-curl "https://gitchamber.com/repos/remorses/fumabase/main/search/markdown"
-```
-
-### More Examples
-```bash
-# List all files
+# List files
 curl "https://gitchamber.com/repos/facebook/react/main/files"
 
-# Get package.json
-curl "https://gitchamber.com/repos/facebook/react/main/file/package.json"
+# Get file with line numbers 100-150
+curl "https://gitchamber.com/repos/facebook/react/main/file/package.json?start=100&end=150"
 
-# Search for "hooks"
-curl "https://gitchamber.com/repos/facebook/react/main/search/hooks"
+# Search for "useState"
+curl "https://gitchamber.com/repos/facebook/react/main/search/useState"
 ```
 
-## 🛠️ Development
+## Development
 
-### Prerequisites
-- Node.js 18+
-- pnpm
-- Cloudflare Workers CLI (Wrangler)
+Prerequisites: Node.js 18+, pnpm, Wrangler CLI
 
-### Setup
 ```bash
-# Clone the repository
 git clone https://github.com/your-username/gitchamber.git
 cd gitchamber
-
-# Install dependencies
 pnpm install
-
-# Deploy to Cloudflare Workers
 pnpm run deployment
 ```
 
-### Configuration
+## Configuration
 
-The service can be configured via environment variables in `wrangler.jsonc`:
+Environment variables in `wrangler.jsonc`:
 
 ```jsonc
 {
   "vars": {
-    "GITHUB_TOKEN": "", // Optional: Increases rate limit to 5,000 req/h
-    "CACHE_TTL_MS": "21600000" // Optional: Cache TTL in milliseconds (6h default)
-  }
+    "GITHUB_TOKEN": "", // Optional: 5K req/h limit vs 60 req/h
+    "CACHE_TTL_MS": "21600000", // 6 hours default
+  },
 }
 ```
 
-### Custom Domain
+## Tech Stack
 
-The service is configured to run on `gitchamber.com`. To use your own domain, update the routes in `wrangler.jsonc`:
+- Cloudflare Workers (runtime)
+- Durable Objects with SQLite (storage)
+- TypeScript
+- @mjackson/tar-parser
+- Spiceflow (API framework)
+- Zod (validation)
 
-```jsonc
-{
-  "routes": [
-    {
-      "pattern": "yourdomain.com/*",
-      "custom_domain": true
-    }
-  ]
-}
+## Performance
+
+- Cold start: 200-500ms
+- Cached response: 10-50ms globally
+- Automatic cleanup after 24h inactivity
+
+## OpenAPI Schema
+
+The API follows OpenAPI 3.0 specification. Key endpoints:
+
+```yaml
+openapi: 3.0.0
+info:
+  title: GitChamber API
+  version: 1.0.0
+paths:
+  /repos/{owner}/{repo}/{branch}/files:
+    get:
+      summary: List repository files
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+  /repos/{owner}/{repo}/{branch}/file/{filepath}:
+    get:
+      summary: Get file content
+      parameters:
+        - name: showLineNumbers
+          in: query
+          schema:
+            type: boolean
+        - name: start
+          in: query
+          schema:
+            type: integer
+        - name: end
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          content:
+            text/plain:
+              schema:
+                type: string
+  /repos/{owner}/{repo}/{branch}/search/{query}:
+    get:
+      summary: Search repository content
+      responses:
+        "200":
+          content:
+            text/markdown:
+              schema:
+                type: string
 ```
-
-## 🏛️ Tech Stack
-
-- **Runtime**: Cloudflare Workers
-- **Storage**: Durable Objects with SQLite
-- **Framework**: [Spiceflow](https://getspiceflow.com) - Type-safe API framework
-- **Validation**: Zod
-- **Archive Parsing**: @mjackson/tar-parser
-- **Language**: TypeScript
-
-## 📊 Performance
-
-- **Cold Start**: ~200-500ms (first access to a repository)
-- **Cached Response**: ~10-50ms globally
-- **Storage**: Efficient SQLite storage with FTS indexing
-- **Concurrency**: Handled automatically by Durable Objects
-
-## 🔒 Rate Limits
-
-- **Without GitHub Token**: 60 requests/hour per IP (GitHub's public API limit)
-- **With GitHub Token**: 5,000 requests/hour (recommended for production)
-
-## 📄 License
-
-MIT License - see [LICENSE](LICENSE) for details.
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## 🐛 Issues
-
-If you encounter any issues, please report them on [GitHub Issues](https://github.com/your-username/gitchamber/issues).
