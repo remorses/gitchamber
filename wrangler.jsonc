@@ -1,0 +1,22 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "repo-cache-worker",
+  "main": "src/worker.ts",
+  "compatibility_date": "2025-07-20",
+  "compatibility_flags": ["nodejs_compat"],
+
+  "durable_objects": {
+    "bindings": [{ "name": "REPO_CACHE", "class_name": "RepoCache" }],
+  },
+
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["RepoCache"], // tells CF this DO uses the built‑in SQLite store
+    },
+  ],
+
+  "vars": {
+    "GITHUB_TOKEN": "", // optional – lifts rate limit to 5 000 req/h
+  },
+}

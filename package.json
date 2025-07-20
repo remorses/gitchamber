@@ -1,0 +1,21 @@
+{
+  "name": "gitchamber",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "remorses",
+  "license": "ISC",
+  "packageManager": "pnpm@10.13.1",
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250712.0",
+    "wrangler": "^4.24.3"
+  },
+  "dependencies": {
+    "@mjackson/tar-parser": "^0.3.0",
+    "spiceflow": "^1.14.0"
+  }
+}
