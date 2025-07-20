@@ -2,11 +2,8 @@
    Cloudflare Worker + Durable Object (SQLite) in one file
    -------------------------------------------------------------------- */
 
-import { Spiceflow } from "spiceflow";
-import { cors } from "spiceflow/cors";
-import { openapi } from "spiceflow/openapi";
 import { parseTar } from "@mjackson/tar-parser";
-import { z } from "zod";
+import { DurableObject } from "cloudflare:workers";
 
 /* ---------- ENV interface ---------------------------- */
 
@@ -19,18 +16,15 @@ interface Env {
 /* ======================================================================
    Durable Object: per‑repo cache
    ==================================================================== */
-export class RepoCache {
+export class RepoCache extends DurableObject {
   private sql: SqlStorage;
-  private ctx: DurableObjectState;
-  private env: Env;
   private ttl: number;
   private owner?: string;
   private repo?: string;
   private branch?: string;
 
   constructor(state: DurableObjectState, env: Env) {
-    this.ctx = state;
-    this.env = env;
+    super(state, env);
     this.sql = state.storage.sql;
     this.ttl = Number(env.CACHE_TTL_MS ?? 21_600_000); // 6 h default
 
@@ -38,7 +32,7 @@ export class RepoCache {
     this.sql.exec(`
       CREATE TABLE IF NOT EXISTS files (
         path          TEXT PRIMARY KEY,
-        content       BLOB,
+        content       TEXT,
         firstFetched  INTEGER
       );
       CREATE VIRTUAL TABLE IF NOT EXISTS files_fts
@@ -82,35 +76,34 @@ export class RepoCache {
       ),
     ];
     const row = results.length > 0 ? results[0] : null;
-    
+
     if (!row) {
       return notFound();
     }
 
-    try {
-      const content = new TextDecoder().decode(row.content as ArrayBuffer);
-      
-      // Apply line formatting if any formatting options are specified
-      if (params.showLineNumbers || params.start !== undefined || params.end !== undefined) {
-        const formatted = formatFileWithLines(
-          content,
-          params.showLineNumbers || false,
-          params.start,
-          params.end
-        );
-        return new Response(formatted, {
-          headers: { "content-type": "text/plain" }
-        });
-      }
-      
-      // Return raw content
-      return new Response(content, {
-        headers: { "content-type": "text/plain" }
+    const content = row.content as string;
+
+    // Apply line formatting if any formatting options are specified
+    if (
+      params.showLineNumbers ||
+      params.start !== undefined ||
+      params.end !== undefined
+    ) {
+      const formatted = formatFileWithLines(
+        content,
+        params.showLineNumbers || false,
+        params.start,
+        params.end,
+      );
+      return new Response(formatted, {
+        headers: { "content-type": "text/plain; charset=utf-8" },
       });
-    } catch {
-      // Binary file - return as-is
-      return new Response(row.content as BodyInit);
     }
+
+    // Return raw text content
+    return new Response(content, {
+      headers: { "content-type": "text/plain; charset=utf-8" },
+    });
   }
 
   async searchFiles(params: {
@@ -132,7 +125,7 @@ export class RepoCache {
         `SELECT
           files.path,
           files.content,
-          snippet(files_fts, -1, '<mark>', '</mark>', '...', 64) as snippet
+          snippet(files_fts, -1, '', '', '...', 64) as snippet
         FROM files_fts
         JOIN files ON files.path = files_fts.path
         WHERE files_fts MATCH ?
@@ -143,57 +136,23 @@ export class RepoCache {
 
     return json(
       rows.map((r) => {
-        const content = new TextDecoder().decode(r.content as ArrayBuffer);
-        const snippet = r.snippet as string;
-        
+        const content = r.content as string;
+        const snippet = (r.snippet as string).replace(/<\/?mark>/g, "");
+
         // Find line number where the match occurs
         const lineNumber = findLineNumberInContent(content, searchQuery);
-        
+
         // Create gitchamber.com URL
-        const url = `https://gitchamber.com/repos/${params.owner}/${params.repo}/${params.branch}/file/${r.path}${lineNumber ? `?start=${lineNumber}` : ''}`;
-        
+        const url = `https://gitchamber.com/repos/${params.owner}/${params.repo}/${params.branch}/file/${r.path}${lineNumber ? `?start=${lineNumber}` : ""}`;
+
         return {
           path: r.path,
           snippet,
           url,
-          lineNumber
+          lineNumber,
         };
       }),
     );
-  }
-
-  async fetch(request: Request) {
-    const url = new URL(request.url);
-    const owner = url.searchParams.get("owner")!;
-    const repo = url.searchParams.get("repo")!;
-    const branch = url.searchParams.get("branch")!;
-
-    if (url.pathname === "/files") {
-      return this.getFiles({ owner, repo, branch });
-    } else if (url.pathname.startsWith("/file/")) {
-      const filePath = url.pathname.slice(6); // Remove "/file/"
-      const showLineNumbers = url.searchParams.get("showLineNumbers") === "true";
-      const start = url.searchParams.get("start") ? parseInt(url.searchParams.get("start")!) : undefined;
-      const end = url.searchParams.get("end") ? parseInt(url.searchParams.get("end")!) : undefined;
-      
-      // If only start is provided, default to showing 50 lines
-      const finalEnd = start !== undefined && end === undefined ? start + 49 : end;
-      
-      return this.getFile({ 
-        owner, 
-        repo, 
-        branch, 
-        filePath, 
-        showLineNumbers,
-        start,
-        end: finalEnd
-      });
-    } else if (url.pathname.startsWith("/search/")) {
-      const query = url.pathname.slice(8); // Remove "/search/"
-      return this.searchFiles({ owner, repo, branch, query });
-    }
-
-    return new Response("Not found", { status: 404 });
   }
 
   /* ---------- populate / refresh ------------- */
@@ -205,10 +164,7 @@ export class RepoCache {
     const last = meta ? Number(meta.val) : 0;
     if (Date.now() - last < this.ttl) return; // still fresh
 
-    /* avoid duplicate concurrent populates */
-    if (this.ctx.blockConcurrencyWhile)
-      await this.ctx.blockConcurrencyWhile(() => this.populate());
-    else await this.populate(); // older runtimes
+    await this.ctx.blockConcurrencyWhile(() => this.populate());
   }
 
   private async populate() {
@@ -239,21 +195,31 @@ export class RepoCache {
       const rel = ent.name.split("/").slice(1).join("/");
       const buf = await ent.arrayBuffer();
 
-      this.sql.exec("INSERT INTO files VALUES (?,?,?)", rel, buf, Date.now());
-
-      /* index small text for FTS */
+      /* only store text files under 1MB */
       if (buf.byteLength < 1_000_000) {
         try {
-          const txt = new TextDecoder().decode(buf);
+          const txt = new TextDecoder("utf-8", {
+            fatal: true,
+            ignoreBOM: false,
+          }).decode(buf);
+          // Store as text
+          this.sql.exec(
+            "INSERT INTO files VALUES (?,?,?)",
+            rel,
+            txt,
+            Date.now(),
+          );
+          // Index for FTS
           this.sql.exec(
             "INSERT INTO files_fts(path,content) VALUES (?,?)",
             rel,
             txt,
           );
         } catch {
-          /* binary */
+          // Skip binary files
         }
       }
+      // Skip large files
     });
 
     const endTime = Date.now();
@@ -272,56 +238,100 @@ export class RepoCache {
    Main Worker: route to the correct Durable Object
    ==================================================================== */
 
-const workerRouter = new Spiceflow()
-  .state("env", {} as Env)
-  .use(cors())
-  .use(openapi({ path: "/openapi.json" }))
-  .route({
-    method: "GET",
-    path: "/repos/:owner/:repo/:branch/files",
-    handler: async ({ params, state }) => {
-      const { owner, repo, branch } = params;
-      const id = state.env.REPO_CACHE.idFromName(`${owner}/${repo}/${branch}`);
-      const stub = state.env.REPO_CACHE.get(id);
-      const doUrl = new URL("https://repo/files");
-      doUrl.searchParams.set("owner", owner);
-      doUrl.searchParams.set("repo", repo);
-      doUrl.searchParams.set("branch", branch);
-      return stub.fetch(new Request(doUrl.toString()));
-    },
-  })
-  .route({
-    method: "GET",
-    path: "/repos/:owner/:repo/:branch/file/*",
-    handler: async ({ params, state }) => {
-      const { owner, repo, branch, "*": filePath } = params;
-      const id = state.env.REPO_CACHE.idFromName(`${owner}/${repo}/${branch}`);
-      const stub = state.env.REPO_CACHE.get(id);
-      const doUrl = new URL(`https://repo/file/${filePath}`);
-      doUrl.searchParams.set("owner", owner);
-      doUrl.searchParams.set("repo", repo);
-      doUrl.searchParams.set("branch", branch);
-      return stub.fetch(new Request(doUrl.toString()));
-    },
-  })
-  .route({
-    method: "GET",
-    path: "/repos/:owner/:repo/:branch/search/:query",
-    handler: async ({ params, state }) => {
-      const { owner, repo, branch, query } = params;
-      const id = state.env.REPO_CACHE.idFromName(`${owner}/${repo}/${branch}`);
-      const stub = state.env.REPO_CACHE.get(id);
-      const doUrl = new URL(`https://repo/search/${encodeURIComponent(query)}`);
-      doUrl.searchParams.set("owner", owner);
-      doUrl.searchParams.set("repo", repo);
-      doUrl.searchParams.set("branch", branch);
-      return stub.fetch(new Request(doUrl.toString()));
-    },
+async function handleRequest(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const corsHeaders = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+  };
+
+  if (request.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  // Parse route: /repos/:owner/:repo/:branch/...
+  const pathParts = url.pathname.split("/").filter(Boolean);
+
+  if (pathParts.length < 4 || pathParts[0] !== "repos") {
+    return new Response("Not found", { status: 404, headers: corsHeaders });
+  }
+
+  const [, owner, repo, branch, ...rest] = pathParts;
+  const id = env.REPO_CACHE.idFromName(`${owner}/${repo}/${branch}`);
+  const stub = env.REPO_CACHE.get(id) as any as RepoCache;
+
+  try {
+    if (rest.length === 1 && rest[0] === "files") {
+      // /repos/:owner/:repo/:branch/files
+      return addCorsHeaders(
+        await stub.getFiles({ owner, repo, branch }),
+        corsHeaders,
+      );
+    } else if (rest.length >= 2 && rest[0] === "file") {
+      // /repos/:owner/:repo/:branch/file/*
+      const filePath = rest.slice(1).join("/");
+      const showLineNumbers =
+        url.searchParams.get("showLineNumbers") === "true";
+      const start = url.searchParams.get("start")
+        ? parseInt(url.searchParams.get("start")!)
+        : undefined;
+      const end = url.searchParams.get("end")
+        ? parseInt(url.searchParams.get("end")!)
+        : undefined;
+
+      // If only start is provided, default to showing 50 lines
+      const finalEnd =
+        start !== undefined && end === undefined ? start + 49 : end;
+
+      return addCorsHeaders(
+        await stub.getFile({
+          owner,
+          repo,
+          branch,
+          filePath,
+          showLineNumbers,
+          start,
+          end: finalEnd,
+        }),
+        corsHeaders,
+      );
+    } else if (rest.length >= 2 && rest[0] === "search") {
+      // /repos/:owner/:repo/:branch/search/:query
+      const query = rest.slice(1).join("/");
+      return addCorsHeaders(
+        await stub.searchFiles({ owner, repo, branch, query }),
+        corsHeaders,
+      );
+    }
+
+    return new Response("Not found", { status: 404, headers: corsHeaders });
+  } catch (error) {
+    console.error("Error:", error);
+    return new Response("Internal server error", {
+      status: 500,
+      headers: corsHeaders,
+    });
+  }
+}
+
+function addCorsHeaders(
+  response: Response,
+  corsHeaders: Record<string, string>,
+): Response {
+  const newHeaders = new Headers(response.headers);
+  Object.entries(corsHeaders).forEach(([key, value]) => {
+    newHeaders.set(key, value);
   });
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: newHeaders,
+  });
+}
 
 export default {
-  fetch: (req: Request, env: Env, ctx: ExecutionContext) =>
-    workerRouter.handle(req, { state: { env } }),
+  fetch: handleRequest,
 };
 
 /* ---------- tiny helpers ------------------ */
@@ -331,20 +341,23 @@ const json = (x: unknown) =>
   });
 const notFound = () => new Response("Not found", { status: 404 });
 
-function findLineNumberInContent(content: string, searchQuery: string): number | null {
+function findLineNumberInContent(
+  content: string,
+  searchQuery: string,
+): number | null {
   try {
-    const lines = content.split('\n');
-    
+    const lines = content.split("\n");
+
     // Simple search - find first line containing the search term
     // This is a basic implementation; could be enhanced with regex matching
     const searchTerm = searchQuery.toLowerCase();
-    
+
     for (let i = 0; i < lines.length; i++) {
       if (lines[i].toLowerCase().includes(searchTerm)) {
         return i + 1; // Return 1-based line number
       }
     }
-    
+
     return null;
   } catch {
     return null;
