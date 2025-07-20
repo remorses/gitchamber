@@ -42,9 +42,9 @@ Returns the raw content of the specified file.
 
 ### Search Repository
 ```
-GET /repos/:owner/:repo/:branch/search?query=searchterm
+GET /repos/:owner/:repo/:branch/search/:query
 ```
-Search through repository content using full-text search.
+Search through repository content using full-text search. Returns matching files with snippets showing the context of matches.
 
 ## 🔧 Example Usage
 
@@ -60,7 +60,7 @@ curl "https://gitchamber.com/repos/remorses/fumabase/main/file/cloudflare-tunnel
 
 ### Search for "markdown" in the repository
 ```bash
-curl "https://gitchamber.com/repos/remorses/fumabase/main/search?query=markdown"
+curl "https://gitchamber.com/repos/remorses/fumabase/main/search/markdown"
 ```
 
 ### More Examples
@@ -72,7 +72,7 @@ curl "https://gitchamber.com/repos/facebook/react/main/files"
 curl "https://gitchamber.com/repos/facebook/react/main/file/package.json"
 
 # Search for "hooks"
-curl "https://gitchamber.com/repos/facebook/react/main/search?query=hooks"
+curl "https://gitchamber.com/repos/facebook/react/main/search/hooks"
 ```
 
 ## 🛠️ Development

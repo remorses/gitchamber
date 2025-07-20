@@ -73,20 +73,29 @@ export class RepoCache {
       })
       .route({
         method: "GET",
-        path: "/search",
-        query: z.object({
-          query: z.string().optional(),
-        }),
-        handler: async ({ query }) => {
+        path: "/search/:query",
+        handler: async ({ params }) => {
           await ensureFresh();
-          const q = query.query ?? "";
+          const searchQuery = decodeURIComponent(params.query);
+          
+          // Use FTS snippet function to get matching snippets
           const rows = [
             ...sql.exec(
-              "SELECT path FROM files_fts WHERE files_fts MATCH ?",
-              q,
+              `SELECT 
+                path,
+                snippet(files_fts, -1, '<mark>', '</mark>', '...', 64) as snippet
+              FROM files_fts 
+              WHERE files_fts MATCH ?
+              ORDER BY rank`,
+              searchQuery,
             ),
           ];
-          return json(rows.map((r) => r.path));
+          
+          // Return objects with path and snippet
+          return json(rows.map((r) => ({
+            path: r.path,
+            snippet: r.snippet
+          })));
         },
       });
   }
@@ -211,22 +220,16 @@ const workerRouter = new Spiceflow()
   })
   .route({
     method: "GET",
-    path: "/repos/:owner/:repo/:branch/search",
-    query: z.object({
-      query: z.string().optional(),
-    }),
-    handler: async ({ request, params, state, query }) => {
-      const { owner, repo, branch } = params;
+    path: "/repos/:owner/:repo/:branch/search/:query",
+    handler: async ({ request, params, state }) => {
+      const { owner, repo, branch, query } = params;
       const id = state.env.REPO_CACHE.idFromName(`${owner}/${repo}/${branch}`);
       const stub = state.env.REPO_CACHE.get(id);
 
-      const doUrl = new URL("https://repo/search");
+      const doUrl = new URL(`https://repo/search/${encodeURIComponent(query)}`);
       doUrl.searchParams.set("owner", owner);
       doUrl.searchParams.set("repo", repo);
       doUrl.searchParams.set("branch", branch);
-      if (query.query) {
-        doUrl.searchParams.set("query", query.query);
-      }
       
       return stub.fetch(new Request(doUrl.toString(), request));
     },
