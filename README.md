@@ -29,12 +29,10 @@ When accessed, repositories are downloaded as tar.gz archives from GitHub, extra
 
 ## API Endpoints
 
-Base URL: `https://gitchamber.com/repos/:owner/:repo/:branch/`
-
 ### List Files
 
 ```
-GET /files
+GET https://gitchamber.com/repos/:owner/:repo/:branch/files
 ```
 
 Returns JSON array of all file paths.
@@ -42,7 +40,7 @@ Returns JSON array of all file paths.
 ### Get File Content
 
 ```
-GET /file/*filepath[?showLineNumbers=true&start=N&end=M]
+GET https://gitchamber.com/repos/:owner/:repo/:branch/file/*filepath[?showLineNumbers=true&start=N&end=M]
 ```
 
 Returns file content. Optional parameters:
@@ -54,23 +52,16 @@ Returns file content. Optional parameters:
 ### Search Repository
 
 ```
-GET /search/*query
+GET https://gitchamber.com/repos/:owner/:repo/:branch/search/*query
 ```
 
 Full-text search returning markdown-formatted results with file paths, snippets, and line numbers.
 
 ## Usage Examples
 
-```bash
-# List files
-curl "https://gitchamber.com/repos/facebook/react/main/files"
-
-# Get file with line numbers 100-150
-curl "https://gitchamber.com/repos/facebook/react/main/file/package.json?start=100&end=150"
-
-# Search for "useState"
-curl "https://gitchamber.com/repos/facebook/react/main/search/useState"
-```
+- [https://gitchamber.com/repos/facebook/react/main/files](https://gitchamber.com/repos/facebook/react/main/files)
+- [https://gitchamber.com/repos/facebook/react/main/file/package.json?start=100&end=150&showLineNumbers=true](https://gitchamber.com/repos/facebook/react/main/file/package.json?start=100&end=150&showLineNumbers=true)
+- [https://gitchamber.com/repos/facebook/react/main/search/useState](https://gitchamber.com/repos/facebook/react/main/search/useState)
 
 ## Development
 
@@ -120,6 +111,8 @@ openapi: 3.0.0
 info:
   title: GitChamber API
   version: 1.0.0
+servers:
+  - url: https://gitchamber.com
 paths:
   /repos/{owner}/{repo}/{branch}/files:
     get:
