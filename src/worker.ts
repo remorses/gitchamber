@@ -136,26 +136,30 @@ export class RepoCache extends DurableObject {
       ),
     ];
 
-    return json(
-      rows.map((r) => {
-        const content = r.content as string;
-        // Remove HTML markup and clean up snippet
-        const snippet = (r.snippet as string).replace(/<\/?mark>/g, "");
+    const results = rows.map((r) => {
+      const content = r.content as string;
+      // Remove HTML markup and clean up snippet
+      const snippet = (r.snippet as string).replace(/<\/?mark>/g, "");
 
-        // Remove ... only from start/end of snippet before searching for line numbers
-        const cleanSnippet = snippet.replace(/^\.\.\.|\.\.\.$/, "");
-        const lineNumber = findLineNumberInContent(content, cleanSnippet);
+      // Remove ... only from start/end of snippet before searching for line numbers
+      const cleanSnippet = snippet.replace(/^\.\.\.|\.\.\.$/, "");
+      const lineNumber = findLineNumberInContent(content, cleanSnippet);
 
-        // Create gitchamber.com URL
-        const url = `https://gitchamber.com/repos/${params.owner}/${params.repo}/${params.branch}/file/${r.path}${lineNumber ? `?start=${lineNumber}` : ""}`;
+      // Create gitchamber.com URL
+      const url = `https://gitchamber.com/repos/${params.owner}/${params.repo}/${params.branch}/file/${r.path}${lineNumber ? `?start=${lineNumber}` : ""}`;
 
-        return {
-          snippet,
-          url,
-          lineNumber,
-        };
-      }),
-    );
+      return {
+        path: r.path as string,
+        snippet,
+        url,
+        lineNumber,
+      };
+    });
+
+    const markdown = formatSearchResultsAsMarkdown(results);
+    return new Response(markdown, {
+      headers: { "content-type": "text/markdown; charset=utf-8" },
+    });
   }
 
   /* ---------- populate / refresh ------------- */
@@ -173,7 +177,7 @@ export class RepoCache extends DurableObject {
       );
       
       const alarmTime = now + (24 * 60 * 60 * 1000);
-      await this.state.storage.setAlarm(alarmTime);
+      await this.ctx.storage.setAlarm(alarmTime);
       return;
     }
 
@@ -197,11 +201,11 @@ export class RepoCache extends DurableObject {
       this.sql.exec("DELETE FROM files_fts"); 
       this.sql.exec("DELETE FROM meta");
       
-      await this.state.storage.deleteAlarm();
+      await this.ctx.storage.deleteAlarm();
       console.log("Repo data deleted and alarm cleared");
     } else {
       const nextAlarmTime = lastFetched + (24 * 60 * 60 * 1000);
-      await this.state.storage.setAlarm(nextAlarmTime);
+      await this.ctx.storage.setAlarm(nextAlarmTime);
       console.log(`Repo still active, rescheduled alarm for ${new Date(nextAlarmTime)}`);
     }
   }
@@ -273,7 +277,7 @@ export class RepoCache extends DurableObject {
     );
 
     const alarmTime = now + (24 * 60 * 60 * 1000);
-    await this.state.storage.setAlarm(alarmTime);
+    await this.ctx.storage.setAlarm(alarmTime);
     console.log(`Set cleanup alarm for ${new Date(alarmTime)}`);
   }
 }
@@ -469,4 +473,22 @@ function formatFileWithLines(
   }
 
   return result.join("\n");
+}
+
+function formatSearchResultsAsMarkdown(results: Array<{
+  path: string;
+  snippet: string;
+  url: string;
+  lineNumber: number | null;
+}>): string {
+  if (results.length === 0) {
+    return "No results found.";
+  }
+
+  return results
+    .map((result) => {
+      const lineInfo = result.lineNumber ? ` (line ${result.lineNumber})` : "";
+      return `## [${result.path}](${result.url})${lineInfo}\n\n\`\`\`\n${result.snippet}\n\`\`\``;
+    })
+    .join("\n\n---\n\n");
 }
