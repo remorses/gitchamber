@@ -4,6 +4,10 @@
 
 import { parseTar } from "@mjackson/tar-parser";
 import { DurableObject } from "cloudflare:workers";
+import { Spiceflow } from "spiceflow";
+import { cors } from "spiceflow/cors";
+import { openapi } from "spiceflow/openapi";
+import { mcp } from "spiceflow/mcp";
 
 /* ---------- ENV interface ---------------------------- */
 
@@ -286,100 +290,60 @@ export class RepoCache extends DurableObject {
    Main Worker: route to the correct Durable Object
    ==================================================================== */
 
-async function handleRequest(request: Request, env: Env): Promise<Response> {
-  const url = new URL(request.url);
-  const corsHeaders = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
-  };
-
-  if (request.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
-
-  // Parse route: /repos/:owner/:repo/:branch/...
-  const pathParts = url.pathname.split("/").filter(Boolean);
-
-  if (pathParts.length < 4 || pathParts[0] !== "repos") {
-    return new Response("Not found", { status: 404, headers: corsHeaders });
-  }
-
-  const [, owner, repo, branch, ...rest] = pathParts;
-  const id = env.REPO_CACHE.idFromName(`${owner}/${repo}/${branch}`);
-  const stub = env.REPO_CACHE.get(id) as any as RepoCache;
-
-  try {
-    if (rest.length === 1 && rest[0] === "files") {
-      // /repos/:owner/:repo/:branch/files
-      return addCorsHeaders(
-        await stub.getFiles({ owner, repo, branch }),
-        corsHeaders,
-      );
-    } else if (rest.length >= 2 && rest[0] === "file") {
-      // /repos/:owner/:repo/:branch/file/*
-      const filePath = rest.slice(1).join("/");
-      const showLineNumbers =
-        url.searchParams.get("showLineNumbers") === "true";
-      const start = url.searchParams.get("start")
-        ? parseInt(url.searchParams.get("start")!)
-        : undefined;
-      const end = url.searchParams.get("end")
-        ? parseInt(url.searchParams.get("end")!)
-        : undefined;
-
+const workerRouter = new Spiceflow()
+  .state("env", {} as Env)
+  .use(cors())
+  .use(openapi({ path: "/openapi.json" }))
+  .use(mcp())
+  .route({
+    method: "GET",
+    path: "/repos/:owner/:repo/:branch/files",
+    handler: async ({ params, state }) => {
+      const { owner, repo, branch } = params;
+      const id = state.env.REPO_CACHE.idFromName(`${owner}/${repo}/${branch}`);
+      const stub = state.env.REPO_CACHE.get(id) as any as RepoCache;
+      return stub.getFiles({ owner, repo, branch });
+    },
+  })
+  .route({
+    method: "GET",
+    path: "/repos/:owner/:repo/:branch/file/*",
+    handler: async ({ params, query, state }) => {
+      const { owner, repo, branch, "*": filePath } = params;
+      const showLineNumbers = query.showLineNumbers === "true";
+      const start = query.start ? parseInt(query.start) : undefined;
+      const end = query.end ? parseInt(query.end) : undefined;
+      
       // If only start is provided, default to showing 50 lines
-      const finalEnd =
-        start !== undefined && end === undefined ? start + 49 : end;
+      const finalEnd = start !== undefined && end === undefined ? start + 49 : end;
 
-      return addCorsHeaders(
-        await stub.getFile({
-          owner,
-          repo,
-          branch,
-          filePath,
-          showLineNumbers,
-          start,
-          end: finalEnd,
-        }),
-        corsHeaders,
-      );
-    } else if (rest.length >= 2 && rest[0] === "search") {
-      // /repos/:owner/:repo/:branch/search/:query
-      const query = rest.slice(1).join("/");
-      return addCorsHeaders(
-        await stub.searchFiles({ owner, repo, branch, query }),
-        corsHeaders,
-      );
-    }
-
-    return new Response("Not found", { status: 404, headers: corsHeaders });
-  } catch (error) {
-    console.error("Error:", error);
-    return new Response("Internal server error", {
-      status: 500,
-      headers: corsHeaders,
-    });
-  }
-}
-
-function addCorsHeaders(
-  response: Response,
-  corsHeaders: Record<string, string>,
-): Response {
-  const newHeaders = new Headers(response.headers);
-  Object.entries(corsHeaders).forEach(([key, value]) => {
-    newHeaders.set(key, value);
+      const id = state.env.REPO_CACHE.idFromName(`${owner}/${repo}/${branch}`);
+      const stub = state.env.REPO_CACHE.get(id) as any as RepoCache;
+      return stub.getFile({
+        owner,
+        repo,
+        branch,
+        filePath,
+        showLineNumbers,
+        start,
+        end: finalEnd,
+      });
+    },
+  })
+  .route({
+    method: "GET",
+    path: "/repos/:owner/:repo/:branch/search/*",
+    handler: async ({ params, state }) => {
+      const { owner, repo, branch, "*": query } = params;
+      const id = state.env.REPO_CACHE.idFromName(`${owner}/${repo}/${branch}`);
+      const stub = state.env.REPO_CACHE.get(id) as any as RepoCache;
+      return stub.searchFiles({ owner, repo, branch, query });
+    },
   });
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers: newHeaders,
-  });
-}
 
 export default {
-  fetch: handleRequest,
+  fetch: (req: Request, env: Env, ctx: ExecutionContext) =>
+    workerRouter.handle(req, { state: { env } }),
 };
 
 /* ---------- tiny helpers ------------------ */

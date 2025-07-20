@@ -4,7 +4,8 @@
   "description": "",
   "type": "module",
   "scripts": {
-    "deployment": "tsc && pnpm wrangler deploy"
+    "deployment": "tsc && pnpm wrangler deploy",
+    "test": "vitest"
   },
   "keywords": [],
   "author": "remorses",

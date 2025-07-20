@@ -54,7 +54,7 @@ Returns file content. Optional parameters:
 ### Search Repository
 
 ```
-GET /search/:query
+GET /search/*query
 ```
 
 Full-text search returning markdown-formatted results with file paths, snippets, and line numbers.
