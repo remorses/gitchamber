@@ -71,11 +71,11 @@ export class RepoCache {
         method: "GET",
         path: "/search",
         query: z.object({
-          q: z.string().optional(),
+          query: z.string().optional(),
         }),
         handler: async ({ query }) => {
           await ensureFresh();
-          const q = query.q ?? "";
+          const q = query.query ?? "";
           const rows = [
             ...sql.exec(
               "SELECT path FROM files_fts WHERE files_fts MATCH ?",
@@ -190,7 +190,7 @@ const workerRouter = new Spiceflow().state("env", {} as Env)
     method: "GET",
     path: "/repos/:owner/:repo/:branch/search",
     query: z.object({
-      q: z.string().optional(),
+      query: z.string().optional(),
     }),
     handler: async ({ request, params, state, query }) => {
       const { owner, repo, branch } = params;
@@ -198,8 +198,8 @@ const workerRouter = new Spiceflow().state("env", {} as Env)
       const stub = state.env.REPO_CACHE.get(id);
 
       const searchParams = new URLSearchParams();
-      if (query.q) {
-        searchParams.set("q", query.q);
+      if (query.query) {
+        searchParams.set("query", query.query);
       }
       const searchUrl = `https://repo/search?${searchParams.toString()}`;
       
