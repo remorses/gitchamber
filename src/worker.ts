@@ -165,9 +165,45 @@ export class RepoCache extends DurableObject {
     ];
     const meta = results.length > 0 ? results[0] : null;
     const last = meta ? Number(meta.val) : 0;
-    if (Date.now() - last < this.ttl) return; // still fresh
+    if (Date.now() - last < this.ttl) {
+      const now = Date.now();
+      this.sql.exec(
+        "INSERT OR REPLACE INTO meta VALUES ('lastFetched',?)",
+        now,
+      );
+      
+      const alarmTime = now + (24 * 60 * 60 * 1000);
+      await this.state.storage.setAlarm(alarmTime);
+      return;
+    }
 
     await this.ctx.blockConcurrencyWhile(() => this.populate());
+  }
+
+  async alarm() {
+    console.log("Alarm triggered - checking if repo data should be deleted");
+    
+    const results = [
+      ...this.sql.exec("SELECT val FROM meta WHERE key = 'lastFetched'"),
+    ];
+    const meta = results.length > 0 ? results[0] : null;
+    const lastFetched = meta ? Number(meta.val) : 0;
+    
+    const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
+    
+    if (lastFetched < oneDayAgo) {
+      console.log("Deleting repo data - not accessed in over 24 hours");
+      this.sql.exec("DELETE FROM files");
+      this.sql.exec("DELETE FROM files_fts"); 
+      this.sql.exec("DELETE FROM meta");
+      
+      await this.state.storage.deleteAlarm();
+      console.log("Repo data deleted and alarm cleared");
+    } else {
+      const nextAlarmTime = lastFetched + (24 * 60 * 60 * 1000);
+      await this.state.storage.setAlarm(nextAlarmTime);
+      console.log(`Repo still active, rescheduled alarm for ${new Date(nextAlarmTime)}`);
+    }
   }
 
   private async populate() {
@@ -230,10 +266,15 @@ export class RepoCache extends DurableObject {
 
     console.log(`Data save completed in ${durationSeconds} seconds`);
 
+    const now = Date.now();
     this.sql.exec(
       "INSERT OR REPLACE INTO meta VALUES ('lastFetched',?)",
-      Date.now(),
+      now,
     );
+
+    const alarmTime = now + (24 * 60 * 60 * 1000);
+    await this.state.storage.setAlarm(alarmTime);
+    console.log(`Set cleanup alarm for ${new Date(alarmTime)}`);
   }
 }
 
