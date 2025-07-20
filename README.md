@@ -59,9 +59,9 @@ Full-text search returning markdown-formatted results with file paths, snippets,
 
 ## Usage Examples
 
-- [https://gitchamber.com/repos/facebook/react/main/files](https://gitchamber.com/repos/facebook/react/main/files)
-- [https://gitchamber.com/repos/facebook/react/main/file/package.json?start=100&end=150&showLineNumbers=true](https://gitchamber.com/repos/facebook/react/main/file/package.json?start=100&end=150&showLineNumbers=true)
-- [https://gitchamber.com/repos/facebook/react/main/search/useState](https://gitchamber.com/repos/facebook/react/main/search/useState)
+- [https://gitchamber.com/repos/remorses/gitchamber/main/files](https://gitchamber.com/repos/remorses/gitchamber/main/files)
+- [https://gitchamber.com/repos/remorses/gitchamber/main/file/package.json?start=1&end=50&showLineNumbers=true](https://gitchamber.com/repos/remorses/gitchamber/main/file/package.json?start=1&end=50&showLineNumbers=true)
+- [https://gitchamber.com/repos/remorses/gitchamber/main/search/cloudflare](https://gitchamber.com/repos/remorses/gitchamber/main/search/cloudflare)
 
 ## Development
 
