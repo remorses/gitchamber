@@ -2,12 +2,15 @@
    Cloudflare Worker + Durable Object (SQLite) in one file
    -------------------------------------------------------------------- */
 
+import { McpAgent } from "agents/mcp";
+
 import { parseTar } from "@mjackson/tar-parser";
 import { DurableObject } from "cloudflare:workers";
 import { Spiceflow } from "spiceflow";
 import { cors } from "spiceflow/cors";
 import { openapi } from "spiceflow/openapi";
-import { mcp } from "spiceflow/mcp";
+import { mcp, addMcpTools } from "spiceflow/mcp";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 /* ---------- ENV interface ---------------------------- */
 
@@ -179,8 +182,8 @@ export class RepoCache extends DurableObject {
         "INSERT OR REPLACE INTO meta VALUES ('lastFetched',?)",
         now,
       );
-      
-      const alarmTime = now + (24 * 60 * 60 * 1000);
+
+      const alarmTime = now + 24 * 60 * 60 * 1000;
       await this.ctx.storage.setAlarm(alarmTime);
       return;
     }
@@ -190,27 +193,29 @@ export class RepoCache extends DurableObject {
 
   async alarm() {
     console.log("Alarm triggered - checking if repo data should be deleted");
-    
+
     const results = [
       ...this.sql.exec("SELECT val FROM meta WHERE key = 'lastFetched'"),
     ];
     const meta = results.length > 0 ? results[0] : null;
     const lastFetched = meta ? Number(meta.val) : 0;
-    
-    const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
-    
+
+    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+
     if (lastFetched < oneDayAgo) {
       console.log("Deleting repo data - not accessed in over 24 hours");
       this.sql.exec("DELETE FROM files");
-      this.sql.exec("DELETE FROM files_fts"); 
+      this.sql.exec("DELETE FROM files_fts");
       this.sql.exec("DELETE FROM meta");
-      
+
       await this.ctx.storage.deleteAlarm();
       console.log("Repo data deleted and alarm cleared");
     } else {
-      const nextAlarmTime = lastFetched + (24 * 60 * 60 * 1000);
+      const nextAlarmTime = lastFetched + 24 * 60 * 60 * 1000;
       await this.ctx.storage.setAlarm(nextAlarmTime);
-      console.log(`Repo still active, rescheduled alarm for ${new Date(nextAlarmTime)}`);
+      console.log(
+        `Repo still active, rescheduled alarm for ${new Date(nextAlarmTime)}`,
+      );
     }
   }
 
@@ -275,26 +280,34 @@ export class RepoCache extends DurableObject {
     console.log(`Data save completed in ${durationSeconds} seconds`);
 
     const now = Date.now();
-    this.sql.exec(
-      "INSERT OR REPLACE INTO meta VALUES ('lastFetched',?)",
-      now,
-    );
+    this.sql.exec("INSERT OR REPLACE INTO meta VALUES ('lastFetched',?)", now);
 
-    const alarmTime = now + (24 * 60 * 60 * 1000);
+    const alarmTime = now + 24 * 60 * 60 * 1000;
     await this.ctx.storage.setAlarm(alarmTime);
     console.log(`Set cleanup alarm for ${new Date(alarmTime)}`);
   }
 }
 
-/* ======================================================================
-   Main Worker: route to the correct Durable Object
-   ==================================================================== */
-
-const workerRouter = new Spiceflow()
+const app = new Spiceflow()
   .state("env", {} as Env)
+  .state("ctx", {} as ExecutionContext)
   .use(cors())
   .use(openapi({ path: "/openapi.json" }))
-  .use(mcp())
+  .route({
+    path: "/sse",
+    handler: ({ request, state }) =>
+      MyMCP.serveSSE("/sse").fetch(request as Request, state.env, state.ctx),
+  })
+  .route({
+    path: "/sse/message",
+    handler: ({ request, state }) =>
+      MyMCP.serveSSE("/sse").fetch(request as Request, state.env, state.ctx),
+  })
+  .route({
+    path: "/mcp",
+    handler: ({ request, state }) =>
+      MyMCP.serve("/mcp").fetch(request as Request, state.env, state.ctx),
+  })
   .route({
     method: "GET",
     path: "/repos/:owner/:repo/:branch/files",
@@ -313,9 +326,10 @@ const workerRouter = new Spiceflow()
       const showLineNumbers = query.showLineNumbers === "true";
       const start = query.start ? parseInt(query.start) : undefined;
       const end = query.end ? parseInt(query.end) : undefined;
-      
+
       // If only start is provided, default to showing 50 lines
-      const finalEnd = start !== undefined && end === undefined ? start + 49 : end;
+      const finalEnd =
+        start !== undefined && end === undefined ? start + 49 : end;
 
       const id = state.env.REPO_CACHE.idFromName(`${owner}/${repo}/${branch}`);
       const stub = state.env.REPO_CACHE.get(id) as any as RepoCache;
@@ -341,12 +355,35 @@ const workerRouter = new Spiceflow()
     },
   });
 
+// from example https://github.com/cloudflare/ai/blob/main/demos/remote-mcp-authless/src/index.ts
+export class MyMCP extends McpAgent {
+  server = new McpServer(
+    {
+      name: "Gitchamber",
+      version: "1.0.0",
+    },
+    {
+      capabilities: {
+        tools: {},
+        resources: {},
+      },
+    },
+  );
+
+  async init() {
+    await addMcpTools({
+      mcpServer: this.server,
+      app: app,
+      ignorePaths: ["/sse", "/sse/message", "/mcp"],
+    });
+  }
+}
+
 export default {
   fetch: (req: Request, env: Env, ctx: ExecutionContext) =>
-    workerRouter.handle(req, { state: { env } }),
+    app.handle(req, { state: { env, ctx } }),
 };
 
-/* ---------- tiny helpers ------------------ */
 const json = (x: unknown) =>
   new Response(JSON.stringify(x, null, 2), {
     headers: { "content-type": "application/json" },
@@ -364,7 +401,7 @@ export function findLineNumberInContent(
 
     // Clean the snippet by removing leading/trailing whitespace
     const cleanSnippet = searchSnippet.trim();
-    
+
     // If snippet is too short, return null
     if (cleanSnippet.length < 3) {
       return null;
@@ -372,12 +409,12 @@ export function findLineNumberInContent(
 
     // Try exact match first
     let index = content.indexOf(cleanSnippet);
-    
+
     if (index === -1) {
       // Try to find a substring that's more likely to match
       // Split snippet into words and find the longest matching sequence
-      const words = cleanSnippet.split(/\s+/).filter(word => word.length > 2);
-      
+      const words = cleanSnippet.split(/\s+/).filter((word) => word.length > 2);
+
       for (const word of words) {
         const wordIndex = content.indexOf(word);
         if (wordIndex !== -1) {
@@ -393,10 +430,10 @@ export function findLineNumberInContent(
 
     // Count newlines before the found index to determine line number
     const beforeMatch = content.substring(0, index);
-    const lineNumber = beforeMatch.split('\n').length;
+    const lineNumber = beforeMatch.split("\n").length;
 
     return lineNumber;
-  } catch(e) {
+  } catch (e) {
     console.error("Error finding line number:", e);
     return null;
   }
@@ -462,12 +499,14 @@ function formatFileWithLines(
   return result.join("\n");
 }
 
-function formatSearchResultsAsMarkdown(results: Array<{
-  path: string;
-  snippet: string;
-  url: string;
-  lineNumber: number | null;
-}>): string {
+function formatSearchResultsAsMarkdown(
+  results: Array<{
+    path: string;
+    snippet: string;
+    url: string;
+    lineNumber: number | null;
+  }>,
+): string {
   if (results.length === 0) {
     return "No results found.";
   }

@@ -6,13 +6,20 @@
   "compatibility_flags": ["nodejs_compat"],
 
   "durable_objects": {
-    "bindings": [{ "name": "REPO_CACHE", "class_name": "RepoCache" }],
+    "bindings": [
+      { "name": "REPO_CACHE", "class_name": "RepoCache" },
+      { "name": "MCP_OBJECT", "class_name": "MyMCP" },
+    ],
   },
 
   "migrations": [
     {
       "tag": "v1",
       "new_sqlite_classes": ["RepoCache"], // tells CF this DO uses the built‑in SQLite store
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": ["MyMCP"], // tells CF this DO uses the built‑in SQLite store
     },
   ],
 
@@ -23,7 +30,7 @@
   "routes": [
     {
       "pattern": "gitchamber.com",
-      "custom_domain": true
-    }
+      "custom_domain": true,
+    },
   ],
 }
