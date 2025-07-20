@@ -2,8 +2,9 @@
    Cloudflare Worker + Durable Object (SQLite) in one file
    -------------------------------------------------------------------- */
 
-import { Spiceflow } from "spiceflow";
+import { Spiceflow, AnySpiceflow } from "spiceflow";
 import { parseTar } from "@mjackson/tar-parser";
+import { z } from "zod";
 
 /* ---------- ENV interface ---------------------------- */
 
@@ -21,6 +22,7 @@ export class RepoCache {
   private ctx: DurableObjectState;
   private env: Env;
   private ttl: number;
+  private router: AnySpiceflow;
 
   constructor(state: DurableObjectState, env: Env) {
     this.ctx = state;
@@ -39,51 +41,58 @@ export class RepoCache {
         USING fts5(path, content, tokenize = 'porter');
       CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, val TEXT);
     `);
+
+    /* ---------------- Spiceflow router inside DO ------------- */
+    const sql = this.sql;
+    const ensureFresh = this.ensureFresh.bind(this);
+
+    this.router = new Spiceflow()
+      .route({
+        method: "GET",
+        path: "/files",
+        handler: async () => {
+          await ensureFresh();
+          const rows = [...sql.exec("SELECT path FROM files ORDER BY path")];
+          return json(rows.map((r) => r.path));
+        },
+      })
+      .route({
+        method: "GET",
+        path: "/file/*",
+        handler: async ({ params }) => {
+          await ensureFresh();
+          const row = sql
+            .exec("SELECT content FROM files WHERE path = ?", params["*"])
+            .one();
+          return row ? new Response(row.content as BodyInit) : notFound();
+        },
+      })
+      .route({
+        method: "GET",
+        path: "/search",
+        query: z.object({
+          q: z.string().optional(),
+        }),
+        handler: async ({ query }) => {
+          await ensureFresh();
+          const q = query.q ?? "";
+          const rows = [
+            ...sql.exec(
+              "SELECT path FROM files_fts WHERE files_fts MATCH ?",
+              q,
+            ),
+          ];
+          return json(rows.map((r) => r.path));
+        },
+      });
   }
 
-  /* ---------------- Spiceflow router inside DO ------------- */
-  private router = new Spiceflow<Env>()
-    .route({
-      method: "GET",
-      path: "/files",
-      handler: async ({ state }) => {
-        await this.ensureFresh();
-        const rows = [...this.sql.exec("SELECT path FROM files ORDER BY path")];
-        return json(rows.map((r) => r.path));
-      },
-    })
-    .route({
-      method: "GET",
-      path: "/file/*path",
-      handler: async ({ params }) => {
-        await this.ensureFresh();
-        const row = this.sql
-          .exec("SELECT content FROM files WHERE path = ?", params.path)
-          .one();
-        return row ? new Response(row.content) : notFound();
-      },
-    })
-    .route({
-      method: "GET",
-      path: "/search",
-      handler: async ({ query }) => {
-        await this.ensureFresh();
-        const q = query.get("q") ?? "";
-        const rows = [
-          ...this.sql.exec(
-            "SELECT path FROM files_fts WHERE files_fts MATCH ?",
-            q,
-          ),
-        ];
-        return json(rows.map((r) => r.path));
-      },
-    });
 
   /* ---------------- entry -------------------- */
   async fetch(request: Request) {
     const url = new URL(request.url);
     // Path received from outer worker has already removed /repos/:o/:r/:b
-    return this.router.handle(request, { env: this.env });
+    return this.router.handle(request, { state: { env: this.env } });
   }
 
   /* ---------- populate / refresh ------------- */
@@ -102,7 +111,7 @@ export class RepoCache {
 
   private async populate() {
     const [owner, repo, branch] = this.ctx.id.toString().split("/", 3);
-    const headers = this.env.GITHUB_TOKEN
+    const headers: HeadersInit = this.env.GITHUB_TOKEN
       ? { Authorization: `Bearer ${this.env.GITHUB_TOKEN}` }
       : {};
     const url = `https://codeload.github.com/${owner}/${repo}/tar.gz/${branch}`;
@@ -113,11 +122,13 @@ export class RepoCache {
     this.sql.exec("DELETE FROM files");
     this.sql.exec("DELETE FROM files_fts");
 
+    const startTime = Date.now();
+
     const gz = r.body!.pipeThrough(new DecompressionStream("gzip"));
-    for await (const ent of parseTar(gz)) {
-      if (ent.type !== "file") continue;
+    await parseTar(gz, async (ent) => {
+      if (ent.header.type !== "file") return;
       const rel = ent.name.split("/").slice(1).join("/");
-      const buf = await new Response(ent.body).arrayBuffer();
+      const buf = await ent.arrayBuffer();
 
       this.sql.exec("INSERT INTO files VALUES (?,?,?)", rel, buf, Date.now());
 
@@ -134,7 +145,13 @@ export class RepoCache {
           /* binary */
         }
       }
-    }
+    });
+
+    const endTime = Date.now();
+    const durationSeconds = (endTime - startTime) / 1000;
+
+    console.log(`Data save completed in ${durationSeconds} seconds`);
+
     this.sql.exec(
       "INSERT OR REPLACE INTO meta VALUES ('lastFetched',?)",
       Date.now(),
@@ -146,29 +163,58 @@ export class RepoCache {
    Main Worker: route to the correct Durable Object
    ==================================================================== */
 
-const workerRouter = new Spiceflow<Env>().route({
-  method: "ALL",
-  path: "/repos/:owner/:repo/:branch/*tail?",
-  handler: async ({ request, params, state }) => {
-    const { owner, repo, branch, tail = "" } = params;
-    const id = state.env!.REPO_CACHE.idFromName(`${owner}/${repo}/${branch}`);
-    const stub = state.env!.REPO_CACHE.get(id);
+const workerRouter = new Spiceflow().state("env", {} as Env)
+  .route({
+    method: "GET",
+    path: "/repos/:owner/:repo/:branch/files",
+    handler: async ({ request, params, state }) => {
+      const { owner, repo, branch } = params;
+      const id = state.env.REPO_CACHE.idFromName(`${owner}/${repo}/${branch}`);
+      const stub = state.env.REPO_CACHE.get(id);
 
-    /* forward, preserving method/body/headers */
-    const inUrl = new URL(request.url);
-    const stubUrl = `https://repo/${tail}${inUrl.search}`; // host irrelevant
-    return stub.fetch(new Request(stubUrl, request));
-  },
-});
+      return stub.fetch(new Request("https://repo/files", request));
+    },
+  })
+  .route({
+    method: "GET",
+    path: "/repos/:owner/:repo/:branch/file/*",
+    handler: async ({ request, params, state }) => {
+      const { owner, repo, branch, "*": filePath } = params;
+      const id = state.env.REPO_CACHE.idFromName(`${owner}/${repo}/${branch}`);
+      const stub = state.env.REPO_CACHE.get(id);
+
+      return stub.fetch(new Request(`https://repo/file/${filePath}`, request));
+    },
+  })
+  .route({
+    method: "GET",
+    path: "/repos/:owner/:repo/:branch/search",
+    query: z.object({
+      q: z.string().optional(),
+    }),
+    handler: async ({ request, params, state, query }) => {
+      const { owner, repo, branch } = params;
+      const id = state.env.REPO_CACHE.idFromName(`${owner}/${repo}/${branch}`);
+      const stub = state.env.REPO_CACHE.get(id);
+
+      const searchParams = new URLSearchParams();
+      if (query.q) {
+        searchParams.set("q", query.q);
+      }
+      const searchUrl = `https://repo/search?${searchParams.toString()}`;
+      
+      return stub.fetch(new Request(searchUrl, request));
+    },
+  });
 
 export default {
   fetch: (req: Request, env: Env, ctx: ExecutionContext) =>
-    workerRouter.handle(req, { env }),
+    workerRouter.handle(req, { state: { env } }),
 };
 
 /* ---------- tiny helpers ------------------ */
 const json = (x: unknown) =>
-  new Response(JSON.stringify(x), {
+  new Response(JSON.stringify(x, null, 2), {
     headers: { "content-type": "application/json" },
   });
 const notFound = () => new Response("Not found", { status: 404 });

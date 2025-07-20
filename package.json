@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@mjackson/tar-parser": "^0.3.0",
-    "spiceflow": "^1.14.0"
+    "spiceflow": "^1.14.0",
+    "zod": "^4.0.5"
   }
 }

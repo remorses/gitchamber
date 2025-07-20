@@ -8,6 +8,7 @@
     "noEmit": false,
     "outDir": "${configDir}/dist",
     "rootDir": "${configDir}/src",
+    "types": ["@cloudflare/workers-types"],
     "moduleResolution": "nodenext",
     "lib": [
       "es2022",
