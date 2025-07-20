@@ -25,6 +25,9 @@ export class RepoCache {
   private env: Env;
   private ttl: number;
   private router: AnySpiceflow;
+  private owner?: string;
+  private repo?: string;
+  private branch?: string;
 
   constructor(state: DurableObjectState, env: Env) {
     this.ctx = state;
@@ -63,9 +66,8 @@ export class RepoCache {
         path: "/file/*",
         handler: async ({ params }) => {
           await ensureFresh();
-          const row = sql
-            .exec("SELECT content FROM files WHERE path = ?", params["*"])
-            .one();
+          const results = [...sql.exec("SELECT content FROM files WHERE path = ?", params["*"])];
+          const row = results.length > 0 ? results[0] : null;
           return row ? new Response(row.content as BodyInit) : notFound();
         },
       })
@@ -93,15 +95,20 @@ export class RepoCache {
   /* ---------------- entry -------------------- */
   async fetch(request: Request) {
     const url = new URL(request.url);
+    
+    // Extract owner, repo, branch from query params
+    this.owner = url.searchParams.get("owner") || undefined;
+    this.repo = url.searchParams.get("repo") || undefined;
+    this.branch = url.searchParams.get("branch") || undefined;
+    
     // Path received from outer worker has already removed /repos/:o/:r/:b
     return this.router.handle(request, { state: { env: this.env } });
   }
 
   /* ---------- populate / refresh ------------- */
   private async ensureFresh() {
-    const meta = this.sql
-      .exec("SELECT val FROM meta WHERE key = 'lastFetched'")
-      .one();
+    const results = [...this.sql.exec("SELECT val FROM meta WHERE key = 'lastFetched'")];
+    const meta = results.length > 0 ? results[0] : null;
     const last = meta ? Number(meta.val) : 0;
     if (Date.now() - last < this.ttl) return; // still fresh
 
@@ -112,13 +119,16 @@ export class RepoCache {
   }
 
   private async populate() {
-    const [owner, repo, branch] = this.ctx.id.toString().split("/", 3);
-    const headers: HeadersInit = this.env.GITHUB_TOKEN
-      ? { Authorization: `Bearer ${this.env.GITHUB_TOKEN}` }
-      : {};
-    const url = `https://codeload.github.com/${owner}/${repo}/tar.gz/${branch}`;
-    const r = await fetch(url, { headers });
-    if (!r.ok) throw new Error(`GitHub archive fetch failed (${r.status})`);
+    if (!this.owner || !this.repo || !this.branch) {
+      throw new Error("Repository parameters (owner, repo, branch) are required for populate");
+    }
+    
+    // Use direct GitHub archive URL - no authentication required
+    const url = `https://github.com/${this.owner}/${this.repo}/archive/${this.branch}.tar.gz`;
+    const r = await fetch(url);
+    if (!r.ok) {
+      throw new Error(`GitHub archive fetch failed (${r.status}) for ${this.owner}/${this.repo}/${this.branch}. URL: ${url}`);
+    }
 
     /* freshen: clear existing rows to avoid orphans */
     this.sql.exec("DELETE FROM files");
@@ -177,7 +187,11 @@ const workerRouter = new Spiceflow()
       const id = state.env.REPO_CACHE.idFromName(`${owner}/${repo}/${branch}`);
       const stub = state.env.REPO_CACHE.get(id);
 
-      return stub.fetch(new Request("https://repo/files", request));
+      const doUrl = new URL("https://repo/files");
+      doUrl.searchParams.set("owner", owner);
+      doUrl.searchParams.set("repo", repo);
+      doUrl.searchParams.set("branch", branch);
+      return stub.fetch(new Request(doUrl.toString(), request));
     },
   })
   .route({
@@ -188,7 +202,11 @@ const workerRouter = new Spiceflow()
       const id = state.env.REPO_CACHE.idFromName(`${owner}/${repo}/${branch}`);
       const stub = state.env.REPO_CACHE.get(id);
 
-      return stub.fetch(new Request(`https://repo/file/${filePath}`, request));
+      const doUrl = new URL(`https://repo/file/${filePath}`);
+      doUrl.searchParams.set("owner", owner);
+      doUrl.searchParams.set("repo", repo);
+      doUrl.searchParams.set("branch", branch);
+      return stub.fetch(new Request(doUrl.toString(), request));
     },
   })
   .route({
@@ -202,13 +220,15 @@ const workerRouter = new Spiceflow()
       const id = state.env.REPO_CACHE.idFromName(`${owner}/${repo}/${branch}`);
       const stub = state.env.REPO_CACHE.get(id);
 
-      const searchParams = new URLSearchParams();
+      const doUrl = new URL("https://repo/search");
+      doUrl.searchParams.set("owner", owner);
+      doUrl.searchParams.set("repo", repo);
+      doUrl.searchParams.set("branch", branch);
       if (query.query) {
-        searchParams.set("query", query.query);
+        doUrl.searchParams.set("query", query.query);
       }
-      const searchUrl = `https://repo/search?${searchParams.toString()}`;
       
-      return stub.fetch(new Request(searchUrl, request));
+      return stub.fetch(new Request(doUrl.toString(), request));
     },
   });
 
