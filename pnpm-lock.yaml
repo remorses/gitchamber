@@ -21,6 +21,9 @@ importers:
       '@cloudflare/workers-types':
         specifier: ^4.20250712.0
         version: 4.20250719.0
+      vite:
+        specifier: ^7.0.5
+        version: 7.0.5
       vitest:
         specifier: ^3.2.4
         version: 3.2.4
