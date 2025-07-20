@@ -5,7 +5,7 @@
     "module": "nodenext",
     "allowJs": false,
     "composite": true,
-    "noEmit": false,
+    "noEmit": true,
     "outDir": "${configDir}/dist",
     "rootDir": "${configDir}/src",
     "types": ["@cloudflare/workers-types"],

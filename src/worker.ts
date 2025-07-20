@@ -3,6 +3,8 @@
    -------------------------------------------------------------------- */
 
 import { Spiceflow, AnySpiceflow } from "spiceflow";
+import { cors } from "spiceflow/cors";
+import { openapi } from "spiceflow/openapi";
 import { parseTar } from "@mjackson/tar-parser";
 import { z } from "zod";
 
@@ -163,7 +165,10 @@ export class RepoCache {
    Main Worker: route to the correct Durable Object
    ==================================================================== */
 
-const workerRouter = new Spiceflow().state("env", {} as Env)
+const workerRouter = new Spiceflow()
+  .state("env", {} as Env)
+  .use(cors())
+  .use(openapi({ path: "/openapi.json" }))
   .route({
     method: "GET",
     path: "/repos/:owner/:repo/:branch/files",
