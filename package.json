@@ -18,8 +18,8 @@
     "wrangler": "^4.24.3"
   },
   "dependencies": {
-    "@mjackson/tar-parser": "^0.3.0",
     "@modelcontextprotocol/sdk": "^1.16.0",
+    "@xmorse/tar-parser": "^0.3.0",
     "agents": "^0.0.109",
     "spiceflow": "^1.17.2",
     "zod": "^4.0.5"

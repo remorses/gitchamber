@@ -8,12 +8,12 @@ importers:
 
   .:
     dependencies:
-      '@mjackson/tar-parser':
-        specifier: ^0.3.0
-        version: 0.3.0
       '@modelcontextprotocol/sdk':
         specifier: ^1.16.0
         version: 1.16.0
+      '@xmorse/tar-parser':
+        specifier: ^0.3.0
+        version: 0.3.0
       agents:
         specifier: ^0.0.109
         version: 0.0.109(@cloudflare/workers-types@4.20250719.0)(react@19.1.0)
@@ -395,9 +395,6 @@ packages:
     resolution: {integrity: sha512-mdvS1spIxmZoUbTdYmWknHtwm72WwrGNoQCDd4RTvcXJ9G6XThxeC3g+cpOf6Fw6vIERHt50pYiJpsk5XTJQ5w==}
     engines: {node: '>=8'}
 
-  '@mjackson/tar-parser@0.3.0':
-    resolution: {integrity: sha512-bzkfhCCZML0ERUmc/qKzc6gKplNkLuY1sMhQl771PtXb1g6SjjkUD/NHiIonTjbTRiRmOUo1OS/vkBMQf29jkw==}
-
   '@modelcontextprotocol/sdk@1.16.0':
     resolution: {integrity: sha512-8ofX7gkZcLj9H9rSd50mCgm3SSF8C7XoclxJuLoV0Cz3rEQ1tv9MZRYYvJtm9n1BiEQQMzSmE/w2AEkNacLYfg==}
     engines: {node: '>=18'}
@@ -565,6 +562,9 @@ packages:
 
   '@vitest/utils@3.2.4':
     resolution: {integrity: sha512-fB2V0JFrQSMsCo9HiSq3Ezpdv4iYaXRG1Sx8edX3MwxfyNn83mKiGzOcH+Fkxt4MHxr3y42fQi1oeAInqgX2QA==}
+
+  '@xmorse/tar-parser@0.3.0':
+    resolution: {integrity: sha512-nRnEhX3fi187SovTamyIy3KC77z5PGCy7ZZ2mzycLdmr9hxZ0fBo9/nTzjbk1xdg3xizq16Y6+WUGNZkY9Uhog==}
 
   accepts@2.0.0:
     resolution: {integrity: sha512-5cvg6CtKwfgdmVqY1WIiXKc3Q1bkRqGLi+2W/6ao+6Y7gu/RCwRuAhGEzh5B4KlszSuTLgZYuqFqo5bImjNKng==}
@@ -1605,8 +1605,6 @@ snapshots:
     dependencies:
       object-treeify: 1.1.33
 
-  '@mjackson/tar-parser@0.3.0': {}
-
   '@modelcontextprotocol/sdk@1.16.0':
     dependencies:
       ajv: 6.12.6
@@ -1755,6 +1753,8 @@ snapshots:
       '@vitest/pretty-format': 3.2.4
       loupe: 3.1.4
       tinyrainbow: 2.0.0
+
+  '@xmorse/tar-parser@0.3.0': {}
 
   accepts@2.0.0:
     dependencies:

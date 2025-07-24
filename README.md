@@ -92,7 +92,7 @@ Environment variables in `wrangler.jsonc`:
 - Cloudflare Workers (runtime)
 - Durable Objects with SQLite (storage)
 - TypeScript
-- @mjackson/tar-parser
+
 - Spiceflow (API framework)
 - Zod (validation)
 

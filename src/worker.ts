@@ -4,7 +4,7 @@
 
 import { McpAgent } from "agents/mcp";
 
-import { parseTar } from "@mjackson/tar-parser";
+import { parseTar } from "@xmorse/tar-parser";
 import { DurableObject } from "cloudflare:workers";
 import { Spiceflow } from "spiceflow";
 import { cors } from "spiceflow/cors";
@@ -177,18 +177,11 @@ export class RepoCache extends DurableObject {
     const meta = results.length > 0 ? results[0] : null;
     const last = meta ? Number(meta.val) : 0;
     if (Date.now() - last < this.ttl) {
-      const now = Date.now();
-      this.sql.exec(
-        "INSERT OR REPLACE INTO meta VALUES ('lastFetched',?)",
-        now,
-      );
-
-      const alarmTime = now + 24 * 60 * 60 * 1000;
-      await this.ctx.storage.setAlarm(alarmTime);
       return;
     }
 
-    await this.ctx.blockConcurrencyWhile(() => this.populate());
+    // Return indicator that refresh is needed
+    throw new Error("NEEDS_REFRESH");
   }
 
   async alarm() {
@@ -219,60 +212,28 @@ export class RepoCache extends DurableObject {
     }
   }
 
-  private async populate() {
-    if (!this.owner || !this.repo || !this.branch) {
-      throw new Error(
-        "Repository parameters (owner, repo, branch) are required for populate",
-      );
-    }
-
-    // Use direct GitHub archive URL - no authentication required
-    const url = `https://github.com/${this.owner}/${this.repo}/archive/${this.branch}.tar.gz`;
-    const r = await fetch(url);
-    if (!r.ok) {
-      throw new Error(
-        `GitHub archive fetch failed (${r.status}) for ${this.owner}/${this.repo}/${this.branch}. URL: ${url}`,
-      );
-    }
-
+  async storeFiles(files: Array<{ path: string; content: string }>) {
     /* freshen: clear existing rows to avoid orphans */
     this.sql.exec("DELETE FROM files");
     this.sql.exec("DELETE FROM files_fts");
 
     const startTime = Date.now();
 
-    const gz = r.body!.pipeThrough(new DecompressionStream("gzip"));
-    await parseTar(gz, async (ent) => {
-      if (ent.header.type !== "file") return;
-      const rel = ent.name.split("/").slice(1).join("/");
-      const buf = await ent.arrayBuffer();
-
-      /* only store text files under 1MB */
-      if (buf.byteLength < 1_000_000) {
-        try {
-          const txt = new TextDecoder("utf-8", {
-            fatal: true,
-            ignoreBOM: false,
-          }).decode(buf);
-          // Store as text
-          this.sql.exec(
-            "INSERT INTO files VALUES (?,?,?)",
-            rel,
-            txt,
-            Date.now(),
-          );
-          // Index for FTS
-          this.sql.exec(
-            "INSERT INTO files_fts(path,content) VALUES (?,?)",
-            rel,
-            txt,
-          );
-        } catch {
-          // Skip binary files
-        }
-      }
-      // Skip large files
-    });
+    // Store files in batch
+    for (const file of files) {
+      this.sql.exec(
+        "INSERT INTO files VALUES (?,?,?)",
+        file.path,
+        file.content,
+        Date.now(),
+      );
+      // Index for FTS
+      this.sql.exec(
+        "INSERT INTO files_fts(path,content) VALUES (?,?)",
+        file.path,
+        file.content,
+      );
+    }
 
     const endTime = Date.now();
     const durationSeconds = (endTime - startTime) / 1000;
@@ -285,7 +246,51 @@ export class RepoCache extends DurableObject {
     const alarmTime = now + 24 * 60 * 60 * 1000;
     await this.ctx.storage.setAlarm(alarmTime);
     console.log(`Set cleanup alarm for ${new Date(alarmTime)}`);
+
+    return json({ success: true, filesStored: files.length });
   }
+}
+
+async function populateRepo(
+  owner: string,
+  repo: string,
+  branch: string,
+  stub: RepoCache,
+) {
+  // Use direct GitHub archive URL - no authentication required
+  const url = `https://github.com/${owner}/${repo}/archive/${branch}.tar.gz`;
+  const r = await fetch(url);
+  if (!r.ok) {
+    throw new Error(
+      `GitHub archive fetch failed (${r.status}) for ${owner}/${repo}/${branch}. URL: ${url}`,
+    );
+  }
+
+  const files: Array<{ path: string; content: string }> = [];
+  const gz = r.body!.pipeThrough(new DecompressionStream("gzip"));
+
+  await parseTar(gz, async (ent) => {
+    if (ent.header.type !== "file") return;
+    const rel = ent.name.split("/").slice(1).join("/");
+    const buf = await ent.arrayBuffer();
+
+    /* only store text files under 1MB */
+    if (buf.byteLength < 1_000_000) {
+      try {
+        const txt = new TextDecoder("utf-8", {
+          fatal: true,
+          ignoreBOM: false,
+        }).decode(buf);
+        files.push({ path: rel, content: txt });
+      } catch {
+        // Skip binary files
+      }
+    }
+    // Skip large files
+  });
+
+  // Store files in the durable object
+  return stub.storeFiles(files);
 }
 
 const app = new Spiceflow()
@@ -315,7 +320,20 @@ const app = new Spiceflow()
       const { owner, repo, branch } = params;
       const id = state.env.REPO_CACHE.idFromName(`${owner}/${repo}/${branch}`);
       const stub = state.env.REPO_CACHE.get(id) as any as RepoCache;
-      return stub.getFiles({ owner, repo, branch });
+
+      try {
+        return await stub.getFiles({ owner, repo, branch });
+      } catch (error: any) {
+        if (error.message === "NEEDS_REFRESH") {
+          // Populate in the worker
+
+          await populateRepo(owner, repo, branch, stub);
+
+          // Try again after populating
+          return stub.getFiles({ owner, repo, branch });
+        }
+        throw error;
+      }
     },
   })
   .route({
@@ -333,15 +351,34 @@ const app = new Spiceflow()
 
       const id = state.env.REPO_CACHE.idFromName(`${owner}/${repo}/${branch}`);
       const stub = state.env.REPO_CACHE.get(id) as any as RepoCache;
-      return stub.getFile({
-        owner,
-        repo,
-        branch,
-        filePath,
-        showLineNumbers,
-        start,
-        end: finalEnd,
-      });
+
+      try {
+        return await stub.getFile({
+          owner,
+          repo,
+          branch,
+          filePath,
+          showLineNumbers,
+          start,
+          end: finalEnd,
+        });
+      } catch (error: any) {
+        if (error.message === "NEEDS_REFRESH") {
+          // Populate in the worker
+          await populateRepo(owner, repo, branch, stub);
+          // Try again after populating
+          return stub.getFile({
+            owner,
+            repo,
+            branch,
+            filePath,
+            showLineNumbers,
+            start,
+            end: finalEnd,
+          });
+        }
+        throw error;
+      }
     },
   })
   .route({
@@ -351,7 +388,18 @@ const app = new Spiceflow()
       const { owner, repo, branch, "*": query } = params;
       const id = state.env.REPO_CACHE.idFromName(`${owner}/${repo}/${branch}`);
       const stub = state.env.REPO_CACHE.get(id) as any as RepoCache;
-      return stub.searchFiles({ owner, repo, branch, query });
+
+      try {
+        return await stub.searchFiles({ owner, repo, branch, query });
+      } catch (error: any) {
+        if (error.message === "NEEDS_REFRESH") {
+          // Populate in the worker
+          await populateRepo(owner, repo, branch, stub);
+          // Try again after populating
+          return stub.searchFiles({ owner, repo, branch, query });
+        }
+        throw error;
+      }
     },
   });
 
