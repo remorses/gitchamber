@@ -64,13 +64,13 @@ You can override the default to read specific implementation files, but **use th
 
 #### TypeScript files only (use same glob for all operations)
 https://gitchamber.com/repos/remorses/fumabase/main/files?glob=**/*.ts
-https://gitchamber.com/repos/remorses/fumabase/main/file/src/index.ts?glob=**/*.ts
+https://gitchamber.com/repos/remorses/fumabase/main/file/website/react-router.config.ts?glob=**/*.ts
 https://gitchamber.com/repos/remorses/fumabase/main/search/export?glob=**/*.ts
 
-#### JavaScript files in src directory only
-https://gitchamber.com/repos/remorses/fumabase/main/files?glob=src/**/*.js
-https://gitchamber.com/repos/remorses/fumabase/main/file/src/utils.js?glob=src/**/*.js
-https://gitchamber.com/repos/remorses/fumabase/main/search/async?glob=src/**/*.js
+#### JavaScript files in website directory only
+https://gitchamber.com/repos/remorses/fumabase/main/files?glob=website/**/*.js
+https://gitchamber.com/repos/remorses/fumabase/main/file/website/vite.config.js?glob=website/**/*.js
+https://gitchamber.com/repos/remorses/fumabase/main/search/async?website=website/**/*.js
 
 #### All files (NOT RECOMMENDED - very slow)
 https://gitchamber.com/repos/remorses/fumabase/main/files?glob=**/*
