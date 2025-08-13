@@ -24,15 +24,13 @@ GUIDELINES:
 - Use line numbers for code references (filename:line_number)
 - Search returns markdown with clickable links
 
-````
-
 ## Query Parameters
 
-| Parameter | Description | Example |
-|-----------|-------------|---------|
-| `start` | Start line number | `?start=10` |
-| `end` | End line number | `?end=50` |
-| `showLineNumbers` | Add line numbers | `?showLineNumbers=true` |
+| Parameter          | Description       | Example                  |
+|--------------------|-------------------|--------------------------|
+| `start`            | Start line number | `?start=10`              |
+| `end`              | End line number   | `?end=50`                |
+| `showLineNumbers`  | Add line numbers  | `?showLineNumbers=true`  |
 
 ## Search Examples
 
@@ -40,4 +38,43 @@ GUIDELINES:
 GET /search/function
 GET /search/async%20function
 GET /search/useState%20AND%20effect
-````
+```
+
+## File Filtering with Glob Patterns
+
+By default, GitChamber only indexes **markdown files and READMEs** to keep repos fast and manageable. The default glob pattern is:
+```
+**/{*.md,*.mdx,README*}
+```
+
+### Using Custom Glob Patterns (Use Rarely)
+
+You can override the default to read specific implementation files, but **use this sparingly** as it impacts performance:
+
+| Parameter | Description         | Example         |
+|-----------|---------------------|-----------------|
+| `glob`    | File pattern filter | `?glob=**/src/**/*.ts` |
+
+**Important:**
+- The same glob pattern **MUST** be used consistently across ALL operations (list, read, search) for a repository
+- Be very specific with patterns to keep operations fast
+- Only use custom globs when you need to examine specific implementation details
+
+### Examples with Custom Globs
+
+```bash
+# TypeScript files only (use same glob for all operations)
+https://gitchamber.com/repos/remorses/fumabase/main/files?glob=**/*.ts
+https://gitchamber.com/repos/remorses/fumabase/main/file/src/index.ts?glob=**/*.ts
+https://gitchamber.com/repos/remorses/fumabase/main/search/export?glob=**/*.ts
+
+# JavaScript files in src directory only
+https://gitchamber.com/repos/remorses/fumabase/main/files?glob=src/**/*.js
+https://gitchamber.com/repos/remorses/fumabase/main/file/src/utils.js?glob=src/**/*.js
+https://gitchamber.com/repos/remorses/fumabase/main/search/async?glob=src/**/*.js
+
+# All files (NOT RECOMMENDED - very slow)
+https://gitchamber.com/repos/remorses/fumabase/main/files?glob=**/*
+```
+
+**Best Practice:** Stick to the default (markdown/README only) unless you specifically need to examine source code implementations.
