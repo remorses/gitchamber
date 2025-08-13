@@ -6,7 +6,7 @@ import { McpAgent } from "agents/mcp";
 
 import { parseTar } from "@xmorse/tar-parser";
 import { DurableObject } from "cloudflare:workers";
-import { Spiceflow } from "spiceflow";
+import { Spiceflow, } from "spiceflow";
 import { cors } from "spiceflow/cors";
 import { openapi } from "spiceflow/openapi";
 import { mcp, addMcpTools } from "spiceflow/mcp";
@@ -15,13 +15,100 @@ import micromatch from "micromatch";
 import { findLineNumberInContent, formatFileWithLines, extractSnippetFromContent } from "./utils.js";
 import AGENTS_MD from "../AGENTS.md";
 import { marked } from "marked";
+import { SpiceflowRequest } from "spiceflow/dist/spiceflow";
 
 /* ---------- Global constants ------------------------- */
 
 const ENABLE_FTS = false; // Set to true to enable full-text search indexing
 const DEFAULT_GLOB = "**/{*.md,*.mdx,README*}"; // Default to markdown and README files only
 
+/* ---------- Region support --------------------------- */
+
+const VALID_REGIONS = [
+  // North America
+  'enam',
+  // Europe
+  'weur',
+  // Asia Pacific
+  'apac',
+  // South America
+  'sam',
+  // Oceania
+  'oc',
+  // Africa
+  'afr'
+] as const;
+export type DurableObjectRegion = typeof VALID_REGIONS[number];
+
+interface GetClosestAvailableRegionArgs {
+  request: Request;
+  regions?: DurableObjectRegion[];
+}
+
 /* ---------- Helper functions ------------------------- */
+
+// Determine the closest Durable Object region based on location
+function getClosestDurableObjectRegion(params: {
+  continent?: string;
+  latitude?: number;
+  longitude?: number;
+}): DurableObjectRegion {
+  const { continent, latitude, longitude } = params;
+
+  // If we have specific continent information, use it
+  if (continent) {
+    switch (continent) {
+      case 'NA':
+        return 'enam';
+      case 'EU':
+        return 'weur';
+      case 'AS':
+        return 'apac';
+      case 'OC':
+        return 'oc';
+      case 'SA':
+        return 'sam';
+      case 'AF':
+        return 'afr';
+      default:
+        return 'enam'; // Default fallback to North America
+    }
+  }
+
+  // Fallback to North America if no location info
+  return 'enam';
+}
+
+function getClosestAvailableRegion({ request, regions = VALID_REGIONS as unknown as DurableObjectRegion[] }: GetClosestAvailableRegionArgs): DurableObjectRegion {
+  // Check for x-force-region header (for testing)
+  const forceRegion = request.headers.get('x-force-region');
+  if (forceRegion && VALID_REGIONS.includes(forceRegion as DurableObjectRegion)) {
+    const forcedRegion = forceRegion as DurableObjectRegion;
+
+    // Only allow forcing to regions that actually have the dataset
+    if (regions.includes(forcedRegion)) {
+      return forcedRegion;
+    }
+
+    // If forced region doesn't have the dataset, throw error
+    throw new Error(`Cannot force region ${forcedRegion}: dataset not available in that region. Available regions: ${regions.join(', ')}`);
+  }
+
+  // Use the closest region from available regions
+  const requestRegion = getClosestDurableObjectRegion({
+    continent: request.cf?.continent as string | undefined,
+    latitude: request.cf?.latitude as number | undefined,
+    longitude: request.cf?.longitude as number | undefined
+  });
+
+  // If the request's closest region is in our available regions, use it
+  if (regions.includes(requestRegion)) {
+    return requestRegion;
+  }
+
+  // Otherwise use first available region
+  return regions[0];
+}
 
 // Convert glob pattern to a safe table suffix
 function globToTableSuffix(glob?: string): string {
@@ -30,6 +117,21 @@ function globToTableSuffix(glob?: string): string {
   if (glob === DEFAULT_GLOB) return "markdown_only";
   // Replace special characters with underscores to create valid table name
   return glob.replace(/[^a-zA-Z0-9]/g, "_").toLowerCase();
+}
+
+// Generate cache key for Durable Object
+interface CacheKeyParams {
+  region: DurableObjectRegion;
+  owner: string;
+  repo: string;
+  branch: string;
+  glob?: string;
+}
+
+function getCacheKey({ region, owner, repo, branch, glob }: CacheKeyParams): string {
+  const basePath = `${owner}/${repo}/${branch}`;
+  const pathWithGlob = glob ? `${basePath}/${globToTableSuffix(glob)}` : basePath;
+  return `${region}.${pathWithGlob}`;
 }
 
 /* ---------- ENV interface ---------------------------- */
@@ -585,11 +687,17 @@ const app = new Spiceflow()
   .route({
     method: "GET",
     path: "/repos/:owner/:repo/:branch/files",
-    handler: async ({ params, query, state }) => {
+    handler: async ({ params, query, state, request }) => {
       const { owner, repo, branch } = params;
       const force = query.force === "true";
       const glob = query.glob || DEFAULT_GLOB;
-      const cacheKey = glob ? `${owner}/${repo}/${branch}/${globToTableSuffix(glob)}` : `${owner}/${repo}/${branch}`;
+
+      // Determine the closest region
+      const selectedRegion = getClosestAvailableRegion({
+        request: request as any
+      });
+
+      const cacheKey = getCacheKey({ region: selectedRegion, owner, repo, branch, glob });
       const id = state.env.REPO_CACHE.idFromName(cacheKey);
       const stub = state.env.REPO_CACHE.get(id) as any as RepoCache;
 
@@ -615,7 +723,7 @@ const app = new Spiceflow()
   .route({
     method: "GET",
     path: "/repos/:owner/:repo/:branch/file/*",
-    handler: async ({ params, query, state }) => {
+    handler: async ({ params, query, state, request }) => {
       const { owner, repo, branch, "*": filePath } = params;
       const showLineNumbers = query.showLineNumbers === "true";
       const force = query.force === "true";
@@ -627,7 +735,12 @@ const app = new Spiceflow()
       const finalEnd =
         start !== undefined && end === undefined ? start + 49 : end;
 
-      const cacheKey = glob ? `${owner}/${repo}/${branch}/${globToTableSuffix(glob)}` : `${owner}/${repo}/${branch}`;
+      // Determine the closest region
+      const selectedRegion = getClosestAvailableRegion({
+        request: request as any
+      });
+
+      const cacheKey = getCacheKey({ region: selectedRegion, owner, repo, branch, glob });
       const id = state.env.REPO_CACHE.idFromName(cacheKey);
       const stub = state.env.REPO_CACHE.get(id) as any as RepoCache;
 
@@ -669,11 +782,17 @@ const app = new Spiceflow()
   .route({
     method: "GET",
     path: "/repos/:owner/:repo/:branch/search/*",
-    handler: async ({ params, query: queryParams, state }) => {
+    handler: async ({ params, query: queryParams, state, request }) => {
       const { owner, repo, branch, "*": query } = params;
       const force = queryParams.force === "true";
       const glob = queryParams.glob || DEFAULT_GLOB;
-      const cacheKey = glob ? `${owner}/${repo}/${branch}/${globToTableSuffix(glob)}` : `${owner}/${repo}/${branch}`;
+
+      // Determine the closest region
+      const selectedRegion = getClosestAvailableRegion({
+        request: request as any
+      });
+
+      const cacheKey = getCacheKey({ region: selectedRegion, owner, repo, branch, glob });
       const id = state.env.REPO_CACHE.idFromName(cacheKey);
       const stub = state.env.REPO_CACHE.get(id) as any as RepoCache;
 

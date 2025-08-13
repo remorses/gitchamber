@@ -10,6 +10,16 @@
 
 High-performance GitHub repository caching service built with Cloudflare Workers and Durable Objects. Provides instant file access, full-text search, and REST API for GitHub repositories.
 
+## Usage
+
+Add to your `CLAUDE.md` or `AGENTS.md`
+
+```md
+to read files in GitHub repos use https://gitchamber.com. It's a website that let you list, read and search files in public github repos.
+
+To see how to use gitchamber ALWAYS do `curl https://gitchamber.com` first.
+```
+
 ## Features
 
 - Instant file access via repository caching
@@ -17,6 +27,8 @@ High-performance GitHub repository caching service built with Cloudflare Workers
 - Configurable TTL with automatic cache refresh
 - Global edge deployment via Cloudflare Workers
 - Per-repository isolation using Durable Objects
+- Data is replicated in each continent. It's fast in every region
+
 
 ## Architecture
 
