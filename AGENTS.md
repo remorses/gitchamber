@@ -15,7 +15,7 @@ OPERATIONS:
 EXAMPLES:
 
 - List files: https://gitchamber.com/repos/facebook/react/main/files
-- Read file: https://gitchamber.com/repos/facebook/react/main/file/package.json?start=10&end=50
+- Read file: https://gitchamber.com/repos/facebook/react/main/file/README.md?start=10&end=50
 - Search: https://gitchamber.com/repos/facebook/react/main/search/useState
 
 GUIDELINES:
@@ -62,19 +62,17 @@ You can override the default to read specific implementation files, but **use th
 
 ### Examples with Custom Globs
 
-```bash
-# TypeScript files only (use same glob for all operations)
+#### TypeScript files only (use same glob for all operations)
 https://gitchamber.com/repos/remorses/fumabase/main/files?glob=**/*.ts
 https://gitchamber.com/repos/remorses/fumabase/main/file/src/index.ts?glob=**/*.ts
 https://gitchamber.com/repos/remorses/fumabase/main/search/export?glob=**/*.ts
 
-# JavaScript files in src directory only
+#### JavaScript files in src directory only
 https://gitchamber.com/repos/remorses/fumabase/main/files?glob=src/**/*.js
 https://gitchamber.com/repos/remorses/fumabase/main/file/src/utils.js?glob=src/**/*.js
 https://gitchamber.com/repos/remorses/fumabase/main/search/async?glob=src/**/*.js
 
-# All files (NOT RECOMMENDED - very slow)
+#### All files (NOT RECOMMENDED - very slow)
 https://gitchamber.com/repos/remorses/fumabase/main/files?glob=**/*
-```
 
 **Best Practice:** Stick to the default (markdown/README only) unless you specifically need to examine source code implementations.

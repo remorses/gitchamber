@@ -470,7 +470,98 @@ const app = new Spiceflow()
   .route({
     method: "GET",
     path: "/",
-    handler: () => {
+    handler: ({ request }) => {
+      const acceptHeader = request.headers.get("accept") || "";
+      
+      // Check if client accepts HTML
+      if (acceptHeader.includes("text/html")) {
+        // Configure marked to render links
+        marked.setOptions({
+          breaks: true,
+          gfm: true,
+        });
+        
+        // Convert markdown to HTML
+        const htmlContent = marked.parse(AGENTS_MD);
+        
+        // Wrap in basic HTML structure
+        const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GitChamber API Documentation</title>
+  <style>
+    body {
+      font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+      line-height: 1.6;
+      margin: 0;
+      padding: 20px;
+      display: flex;
+      justify-content: center;
+      background-color: #000;
+      color: #fff;
+    }
+    .container {
+      max-width: 900px;
+      width: 100%;
+    }
+    a {
+      color: #4a9eff;
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+    pre {
+      overflow-x: auto;
+      background-color: #111;
+      padding: 12px;
+      border-radius: 4px;
+    }
+    code {
+      font-family: inherit;
+      background-color: #222;
+      padding: 2px 4px;
+      border-radius: 2px;
+    }
+    pre code {
+      background-color: transparent;
+      padding: 0;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+    th, td {
+      border: 1px solid #333;
+      padding: 8px;
+      text-align: left;
+    }
+    th {
+      background-color: #1a1a1a;
+    }
+    tr:hover {
+      background-color: #0a0a0a;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      color: #fff;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    ${htmlContent}
+  </div>
+</body>
+</html>`;
+        
+        return new Response(html, {
+          headers: { "content-type": "text/html; charset=utf-8" },
+        });
+      }
+      
+      // Default to plain text
       return new Response(AGENTS_MD, {
         headers: { "content-type": "text/plain; charset=utf-8" },
       });
