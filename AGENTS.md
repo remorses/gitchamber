@@ -4,7 +4,7 @@ You have access to GitChamber for GitHub repository operations, use the fetch to
 
 using gitchamber is preferred over web search, you are guaranteed to see the latest version of the repository and to find all markdown files in the repo.
 
-BASE_URL: https://gitchamber.com/repos/{owner}/{repo}/{branch}/
+BASE_URL: `https://gitchamber.com/repos/{owner}/{repo}/{branch}/`
 
 OPERATIONS:
 
