@@ -87,6 +87,17 @@ Environment variables in `wrangler.jsonc`:
 }
 ```
 
+## Why Use GitChamber Instead of WebFetch
+
+GitChamber offers several key advantages over the traditional WebFetch tool for accessing GitHub repositories:
+
+- **Always Fresh Content**: Never get stale information - GitChamber automatically refreshes cached content based on configurable TTL, ensuring you always see the latest version of repository files
+- **Native Markdown Support**: Files are already in markdown format, eliminating the need to convert HTML back to markdown, preserving original formatting and structure
+- **Access to Implementation Files**: Using custom glob patterns, you can retrieve actual source code files (.js, .ts, .py, etc.), not just documentation
+- **Context-Aware Pagination**: Supports line-based pagination with `start` and `end` parameters to prevent LLM context overflow - Claude and other LLMs can efficiently process large files in chunks
+- **Precise Search**: Uses exact string matching instead of imprecise fuzzy or semantic search, ensuring you find exactly what you're looking for with full-text search capabilities via SQLite FTS
+- **Optimized for LLMs**: Purpose-built for AI agents and LLMs like Claude that need structured, reliable access to repository contents
+
 ## Tech Stack
 
 - Cloudflare Workers (runtime)
