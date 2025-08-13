@@ -65,7 +65,7 @@ export class RepoCache extends DurableObject {
     const tableSuffix = globToTableSuffix(glob);
     const filesTable = `files_${tableSuffix}`;
     const ftsTable = `files_fts_${tableSuffix}`;
-    
+
     /* Create tables specific to this glob pattern if they don't exist */
     if (ENABLE_FTS) {
       this.sql.exec(`
@@ -292,10 +292,10 @@ export class RepoCache extends DurableObject {
     const results = [
       ...this.sql.exec("SELECT key, val FROM meta WHERE key LIKE 'lastFetched_%'"),
     ];
-    
+
     const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
     let anyActive = false;
-    
+
     for (const meta of results) {
       const lastFetched = Number(meta.val);
       if (lastFetched >= oneDayAgo) {
@@ -331,7 +331,7 @@ export class RepoCache extends DurableObject {
     const tableSuffix = globToTableSuffix(glob);
     const filesTable = `files_${tableSuffix}`;
     const ftsTable = `files_fts_${tableSuffix}`;
-    
+
     /* freshen: clear existing rows to avoid orphans on first batch only */
     if (isFirstBatch) {
       this.sql.exec(`DELETE FROM ${filesTable}`);
@@ -418,16 +418,16 @@ async function populateRepo(
           fatal: true,
           ignoreBOM: false,
         }).decode(buf);
-        
+
         // Skip files that don't match the glob pattern
         if (glob && glob !== "**/*" && !micromatch.isMatch(rel, glob)) {
           return;
         }
-        
+
         // Calculate the approximate size of this file in the batch
         // Account for both path and content strings
         const fileSize = rel.length + txt.length;
-        
+
         // If adding this file would exceed the batch size, send the current batch
         if (currentBatchSize + fileSize > MAX_BATCH_SIZE && currentBatch.length > 0) {
           console.log(`Sending batch ${batchNumber + 1} with ${currentBatch.length} files (${(currentBatchSize / 1024 / 1024).toFixed(2)}MB)`);
@@ -437,7 +437,7 @@ async function populateRepo(
           currentBatch = [];
           currentBatchSize = 0;
         }
-        
+
         // Add file to current batch
         currentBatch.push({ path: rel, content: txt });
         currentBatchSize += fileSize;
@@ -457,7 +457,7 @@ async function populateRepo(
 
   // Finalize the batch operation
   await stub.finalizeBatch(glob);
-  
+
   console.log(`Populated repo with ${totalFiles} files in ${batchNumber + 1} batches`);
   return { success: true, totalFiles, batches: batchNumber + 1 };
 }
@@ -472,7 +472,7 @@ const app = new Spiceflow()
     path: "/",
     handler: ({ request }) => {
       const acceptHeader = request.headers.get("accept") || "";
-      
+
       // Check if client accepts HTML
       if (acceptHeader.includes("text/html")) {
         // Configure marked to render links
@@ -480,10 +480,10 @@ const app = new Spiceflow()
           breaks: true,
           gfm: true,
         });
-        
+
         // Convert markdown to HTML
         const htmlContent = marked.parse(AGENTS_MD);
-        
+
         // Wrap in basic HTML structure
         const html = `<!DOCTYPE html>
 <html>
@@ -493,7 +493,7 @@ const app = new Spiceflow()
   <title>GitChamber API Documentation</title>
   <style>
     body {
-      font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+      font-family: Consolas, Menlo, 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', 'Courier New', monospace;
       line-height: 1.6;
       margin: 0;
       padding: 20px;
@@ -555,12 +555,12 @@ const app = new Spiceflow()
   </div>
 </body>
 </html>`;
-        
+
         return new Response(html, {
           headers: { "content-type": "text/html; charset=utf-8" },
         });
       }
-      
+
       // Default to plain text
       return new Response(AGENTS_MD, {
         headers: { "content-type": "text/plain; charset=utf-8" },
@@ -747,6 +747,6 @@ function formatSearchResultsAsMarkdown(
       return `<result contentUrl="${result.url}">\n${result.path}\n\n${result.snippet}\n</result>`;
     })
     .join("\n\n");
-  
+
   return `<results>\n${resultsXml}\n</results>`;
 }
