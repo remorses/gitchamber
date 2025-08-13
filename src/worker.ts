@@ -11,10 +11,23 @@ import { cors } from "spiceflow/cors";
 import { openapi } from "spiceflow/openapi";
 import { mcp, addMcpTools } from "spiceflow/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import micromatch from "micromatch";
 
 /* ---------- Global constants ------------------------- */
 
 const ENABLE_FTS = false; // Set to true to enable full-text search indexing
+const DEFAULT_GLOB = "**/{*.md,*.mdx,README*}"; // Default to markdown and README files only
+
+/* ---------- Helper functions ------------------------- */
+
+// Convert glob pattern to a safe table suffix
+function globToTableSuffix(glob?: string): string {
+  if (!glob) return "default";
+  if (glob === "**/*") return "all_files";
+  if (glob === DEFAULT_GLOB) return "markdown_only";
+  // Replace special characters with underscores to create valid table name
+  return glob.replace(/[^a-zA-Z0-9]/g, "_").toLowerCase();
+}
 
 /* ---------- ENV interface ---------------------------- */
 
@@ -39,31 +52,38 @@ export class RepoCache extends DurableObject {
     this.sql = state.storage.sql;
     this.ttl = Number(env.CACHE_TTL_MS ?? 21_600_000); // 6 h default
 
-    /* one‑time schema */
+    // Create meta table for tracking different glob patterns
+    this.sql.exec(`
+      CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, val TEXT);
+    `);
+  }
+
+  private ensureTablesForGlob(glob?: string) {
+    const tableSuffix = globToTableSuffix(glob);
+    const filesTable = `files_${tableSuffix}`;
+    const ftsTable = `files_fts_${tableSuffix}`;
+    
+    /* Create tables specific to this glob pattern if they don't exist */
     if (ENABLE_FTS) {
       this.sql.exec(`
-        CREATE TABLE IF NOT EXISTS files (
+        CREATE TABLE IF NOT EXISTS ${filesTable} (
           path          TEXT PRIMARY KEY,
           content       TEXT,
           firstFetched  INTEGER
         );
-        CREATE VIRTUAL TABLE IF NOT EXISTS files_fts
+        CREATE VIRTUAL TABLE IF NOT EXISTS ${ftsTable}
           USING fts5(path, content, tokenize = 'porter');
-        CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, val TEXT);
       `);
     } else {
       // Optimized for fast inserts - no additional indexes on content
       // The PRIMARY KEY on path provides fast path searches
       // Content searches use table scan with LIKE (acceptable trade-off for fast inserts)
       this.sql.exec(`
-        CREATE TABLE IF NOT EXISTS files (
+        CREATE TABLE IF NOT EXISTS ${filesTable} (
           path          TEXT PRIMARY KEY,
           content       TEXT,
           firstFetched  INTEGER
         );
-        CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, val TEXT);
-
-
       `);
     }
   }
@@ -72,13 +92,17 @@ export class RepoCache extends DurableObject {
     owner: string;
     repo: string;
     branch: string;
+    glob?: string;
   }): Promise<Response> {
     this.owner = params.owner;
     this.repo = params.repo;
     this.branch = params.branch;
 
-    await this.ensureFresh();
-    const rows = [...this.sql.exec("SELECT path FROM files ORDER BY path")];
+    await this.ensureFresh(params.glob);
+    this.ensureTablesForGlob(params.glob);
+    const tableSuffix = globToTableSuffix(params.glob);
+    const filesTable = `files_${tableSuffix}`;
+    const rows = [...this.sql.exec(`SELECT path FROM ${filesTable} ORDER BY path`)];
     return json(rows.map((r) => r.path));
   }
 
@@ -90,15 +114,19 @@ export class RepoCache extends DurableObject {
     showLineNumbers?: boolean;
     start?: number;
     end?: number;
+    glob?: string;
   }): Promise<Response> {
     this.owner = params.owner;
     this.repo = params.repo;
     this.branch = params.branch;
 
-    await this.ensureFresh();
+    await this.ensureFresh(params.glob);
+    this.ensureTablesForGlob(params.glob);
+    const tableSuffix = globToTableSuffix(params.glob);
+    const filesTable = `files_${tableSuffix}`;
     const results = [
       ...this.sql.exec(
-        "SELECT content FROM files WHERE path = ?",
+        `SELECT content FROM ${filesTable} WHERE path = ?`,
         params.filePath,
       ),
     ];
@@ -138,12 +166,17 @@ export class RepoCache extends DurableObject {
     repo: string;
     branch: string;
     query: string;
+    glob?: string;
   }): Promise<Response> {
     this.owner = params.owner;
     this.repo = params.repo;
     this.branch = params.branch;
 
-    await this.ensureFresh();
+    await this.ensureFresh(params.glob);
+    this.ensureTablesForGlob(params.glob);
+    const tableSuffix = globToTableSuffix(params.glob);
+    const filesTable = `files_${tableSuffix}`;
+    const ftsTable = `files_fts_${tableSuffix}`;
     const searchQuery = decodeURIComponent(params.query);
 
     let rows: any[];
@@ -155,12 +188,12 @@ export class RepoCache extends DurableObject {
       rows = [
         ...this.sql.exec(
           `SELECT
-            files.path,
-            files.content,
-            snippet(files_fts, -1, '', '', '...', 64) as snippet
-          FROM files_fts
-          JOIN files ON files.path = files_fts.path
-          WHERE files_fts MATCH ?
+            ${filesTable}.path,
+            ${filesTable}.content,
+            snippet(${ftsTable}, -1, '', '', '...', 64) as snippet
+          FROM ${ftsTable}
+          JOIN ${filesTable} ON ${filesTable}.path = ${ftsTable}.path
+          WHERE ${ftsTable} MATCH ?
           ORDER BY rank`,
           searchQuery,
         ),
@@ -175,7 +208,7 @@ export class RepoCache extends DurableObject {
             path,
             content,
             NULL as snippet
-          FROM files
+          FROM ${filesTable}
           WHERE path LIKE ? COLLATE NOCASE OR content LIKE ? COLLATE NOCASE
           ORDER BY
             CASE
@@ -224,9 +257,10 @@ export class RepoCache extends DurableObject {
   }
 
   /* ---------- populate / refresh ------------- */
-  private async ensureFresh() {
+  private async ensureFresh(glob?: string) {
+    const metaKey = `lastFetched_${globToTableSuffix(glob)}`;
     const results = [
-      ...this.sql.exec("SELECT val FROM meta WHERE key = 'lastFetched'"),
+      ...this.sql.exec("SELECT val FROM meta WHERE key = ?", metaKey),
     ];
     const meta = results.length > 0 ? results[0] : null;
     const last = meta ? Number(meta.val) : 0;
@@ -241,24 +275,37 @@ export class RepoCache extends DurableObject {
   async alarm() {
     console.log("Alarm triggered - checking if repo data should be deleted");
 
+    // Get all lastFetched entries from meta table
     const results = [
-      ...this.sql.exec("SELECT val FROM meta WHERE key = 'lastFetched'"),
+      ...this.sql.exec("SELECT key, val FROM meta WHERE key LIKE 'lastFetched_%'"),
     ];
-    const meta = results.length > 0 ? results[0] : null;
-    const lastFetched = meta ? Number(meta.val) : 0;
-
+    
     const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+    let anyActive = false;
+    
+    for (const meta of results) {
+      const lastFetched = Number(meta.val);
+      if (lastFetched >= oneDayAgo) {
+        anyActive = true;
+        break;
+      }
+    }
 
-    if (lastFetched < oneDayAgo) {
-      console.log("Deleting repo data - not accessed in over 24 hours");
-      this.sql.exec("DELETE FROM files");
-      this.sql.exec("DELETE FROM files_fts");
+    if (!anyActive) {
+      console.log("Deleting all repo data - not accessed in over 24 hours");
+      // Delete all glob-specific tables
+      const tableResults = [
+        ...this.sql.exec("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'files_%'"),
+      ];
+      for (const table of tableResults) {
+        this.sql.exec(`DROP TABLE IF EXISTS ${table.name}`);
+      }
       this.sql.exec("DELETE FROM meta");
 
       await this.ctx.storage.deleteAlarm();
-      console.log("Repo data deleted and alarm cleared");
+      console.log("All repo data deleted and alarm cleared");
     } else {
-      const nextAlarmTime = lastFetched + 24 * 60 * 60 * 1000;
+      const nextAlarmTime = Date.now() + 24 * 60 * 60 * 1000;
       await this.ctx.storage.setAlarm(nextAlarmTime);
       console.log(
         `Repo still active, rescheduled alarm for ${new Date(nextAlarmTime)}`,
@@ -266,12 +313,17 @@ export class RepoCache extends DurableObject {
     }
   }
 
-  async storeFiles(files: Array<{ path: string; content: string }>, isFirstBatch: boolean = true) {
+  async storeFiles(files: Array<{ path: string; content: string }>, glob?: string, isFirstBatch: boolean = true) {
+    this.ensureTablesForGlob(glob);
+    const tableSuffix = globToTableSuffix(glob);
+    const filesTable = `files_${tableSuffix}`;
+    const ftsTable = `files_fts_${tableSuffix}`;
+    
     /* freshen: clear existing rows to avoid orphans on first batch only */
     if (isFirstBatch) {
-      this.sql.exec("DELETE FROM files");
+      this.sql.exec(`DELETE FROM ${filesTable}`);
       if (ENABLE_FTS) {
-        this.sql.exec("DELETE FROM files_fts");
+        this.sql.exec(`DELETE FROM ${ftsTable}`);
       }
     }
 
@@ -280,7 +332,7 @@ export class RepoCache extends DurableObject {
     // Store files in batch
     for (const file of files) {
       this.sql.exec(
-        "INSERT INTO files VALUES (?,?,?)",
+        `INSERT INTO ${filesTable} VALUES (?,?,?)`,
         file.path,
         file.content,
         Date.now(),
@@ -288,7 +340,7 @@ export class RepoCache extends DurableObject {
       // Index for FTS
       if (ENABLE_FTS) {
         this.sql.exec(
-          "INSERT INTO files_fts(path,content) VALUES (?,?)",
+          `INSERT INTO ${ftsTable}(path,content) VALUES (?,?)`,
           file.path,
           file.content,
         );
@@ -303,9 +355,10 @@ export class RepoCache extends DurableObject {
     return json({ success: true, filesStored: files.length });
   }
 
-  async finalizeBatch() {
+  async finalizeBatch(glob?: string) {
+    const metaKey = `lastFetched_${globToTableSuffix(glob)}`;
     const now = Date.now();
-    this.sql.exec("INSERT OR REPLACE INTO meta VALUES ('lastFetched',?)", now);
+    this.sql.exec("INSERT OR REPLACE INTO meta VALUES (?,?)", metaKey, now);
 
     const alarmTime = now + 24 * 60 * 60 * 1000;
     await this.ctx.storage.setAlarm(alarmTime);
@@ -320,6 +373,7 @@ async function populateRepo(
   repo: string,
   branch: string,
   stub: RepoCache,
+  glob?: string,
 ) {
   // Use direct GitHub archive URL - no authentication required
   const url = `https://github.com/${owner}/${repo}/archive/${branch}.tar.gz`;
@@ -352,6 +406,11 @@ async function populateRepo(
           ignoreBOM: false,
         }).decode(buf);
         
+        // Skip files that don't match the glob pattern
+        if (glob && glob !== "**/*" && !micromatch.isMatch(rel, glob)) {
+          return;
+        }
+        
         // Calculate the approximate size of this file in the batch
         // Account for both path and content strings
         const fileSize = rel.length + txt.length;
@@ -359,7 +418,7 @@ async function populateRepo(
         // If adding this file would exceed the batch size, send the current batch
         if (currentBatchSize + fileSize > MAX_BATCH_SIZE && currentBatch.length > 0) {
           console.log(`Sending batch ${batchNumber + 1} with ${currentBatch.length} files (${(currentBatchSize / 1024 / 1024).toFixed(2)}MB)`);
-          await stub.storeFiles(currentBatch, batchNumber === 0);
+          await stub.storeFiles(currentBatch, glob, batchNumber === 0);
           batchNumber++;
           totalFiles += currentBatch.length;
           currentBatch = [];
@@ -379,12 +438,12 @@ async function populateRepo(
   // Send any remaining files in the last batch
   if (currentBatch.length > 0) {
     console.log(`Sending final batch ${batchNumber + 1} with ${currentBatch.length} files (${(currentBatchSize / 1024 / 1024).toFixed(2)}MB)`);
-    await stub.storeFiles(currentBatch, batchNumber === 0);
+    await stub.storeFiles(currentBatch, glob, batchNumber === 0);
     totalFiles += currentBatch.length;
   }
 
   // Finalize the batch operation
-  await stub.finalizeBatch();
+  await stub.finalizeBatch(glob);
   
   console.log(`Populated repo with ${totalFiles} files in ${batchNumber + 1} batches`);
   return { success: true, totalFiles, batches: batchNumber + 1 };
@@ -416,23 +475,25 @@ const app = new Spiceflow()
     handler: async ({ params, query, state }) => {
       const { owner, repo, branch } = params;
       const force = query.force === "true";
-      const id = state.env.REPO_CACHE.idFromName(`${owner}/${repo}/${branch}`);
+      const glob = query.glob || DEFAULT_GLOB;
+      const cacheKey = glob ? `${owner}/${repo}/${branch}/${globToTableSuffix(glob)}` : `${owner}/${repo}/${branch}`;
+      const id = state.env.REPO_CACHE.idFromName(cacheKey);
       const stub = state.env.REPO_CACHE.get(id) as any as RepoCache;
 
       try {
         if (force) {
           // Force refresh by directly populating
-          await populateRepo(owner, repo, branch, stub);
+          await populateRepo(owner, repo, branch, stub, glob);
         }
-        return await stub.getFiles({ owner, repo, branch });
+        return await stub.getFiles({ owner, repo, branch, glob });
       } catch (error: any) {
         if (error.message === "NEEDS_REFRESH") {
           // Populate in the worker
 
-          await populateRepo(owner, repo, branch, stub);
+          await populateRepo(owner, repo, branch, stub, glob);
 
           // Try again after populating
-          return stub.getFiles({ owner, repo, branch });
+          return stub.getFiles({ owner, repo, branch, glob });
         }
         throw error;
       }
@@ -445,6 +506,7 @@ const app = new Spiceflow()
       const { owner, repo, branch, "*": filePath } = params;
       const showLineNumbers = query.showLineNumbers === "true";
       const force = query.force === "true";
+      const glob = query.glob || DEFAULT_GLOB;
       const start = query.start ? parseInt(query.start) : undefined;
       const end = query.end ? parseInt(query.end) : undefined;
 
@@ -452,13 +514,14 @@ const app = new Spiceflow()
       const finalEnd =
         start !== undefined && end === undefined ? start + 49 : end;
 
-      const id = state.env.REPO_CACHE.idFromName(`${owner}/${repo}/${branch}`);
+      const cacheKey = glob ? `${owner}/${repo}/${branch}/${globToTableSuffix(glob)}` : `${owner}/${repo}/${branch}`;
+      const id = state.env.REPO_CACHE.idFromName(cacheKey);
       const stub = state.env.REPO_CACHE.get(id) as any as RepoCache;
 
       try {
         if (force) {
           // Force refresh by directly populating
-          await populateRepo(owner, repo, branch, stub);
+          await populateRepo(owner, repo, branch, stub, glob);
         }
         return await stub.getFile({
           owner,
@@ -468,11 +531,12 @@ const app = new Spiceflow()
           showLineNumbers,
           start,
           end: finalEnd,
+          glob,
         });
       } catch (error: any) {
         if (error.message === "NEEDS_REFRESH") {
           // Populate in the worker
-          await populateRepo(owner, repo, branch, stub);
+          await populateRepo(owner, repo, branch, stub, glob);
           // Try again after populating
           return stub.getFile({
             owner,
@@ -482,6 +546,7 @@ const app = new Spiceflow()
             showLineNumbers,
             start,
             end: finalEnd,
+            glob,
           });
         }
         throw error;
@@ -494,21 +559,23 @@ const app = new Spiceflow()
     handler: async ({ params, query: queryParams, state }) => {
       const { owner, repo, branch, "*": query } = params;
       const force = queryParams.force === "true";
-      const id = state.env.REPO_CACHE.idFromName(`${owner}/${repo}/${branch}`);
+      const glob = queryParams.glob || DEFAULT_GLOB;
+      const cacheKey = glob ? `${owner}/${repo}/${branch}/${globToTableSuffix(glob)}` : `${owner}/${repo}/${branch}`;
+      const id = state.env.REPO_CACHE.idFromName(cacheKey);
       const stub = state.env.REPO_CACHE.get(id) as any as RepoCache;
 
       try {
         if (force) {
           // Force refresh by directly populating
-          await populateRepo(owner, repo, branch, stub);
+          await populateRepo(owner, repo, branch, stub, glob);
         }
-        return await stub.searchFiles({ owner, repo, branch, query });
+        return await stub.searchFiles({ owner, repo, branch, query, glob });
       } catch (error: any) {
         if (error.message === "NEEDS_REFRESH") {
           // Populate in the worker
-          await populateRepo(owner, repo, branch, stub);
+          await populateRepo(owner, repo, branch, stub, glob);
           // Try again after populating
-          return stub.searchFiles({ owner, repo, branch, query });
+          return stub.searchFiles({ owner, repo, branch, query, glob });
         }
         throw error;
       }
