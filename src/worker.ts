@@ -240,8 +240,18 @@ export class RepoCache extends DurableObject {
       const cleanSnippet = snippet.replace(/^\.\.\.|\.\.\.$/, "");
       const lineNumber = findLineNumberInContent(content, cleanSnippet);
 
-      // Create gitchamber.com URL
-      const url = `https://gitchamber.com/repos/${params.owner}/${params.repo}/${params.branch}/file/${r.path}${lineNumber ? `?start=${lineNumber}` : ""}`;
+      // Create URL with glob parameter and without base domain
+      let url = `/repos/${params.owner}/${params.repo}/${params.branch}/file/${r.path}`;
+      const queryParams: string[] = [];
+      if (lineNumber) {
+        queryParams.push(`start=${lineNumber}`);
+      }
+      if (params.glob && params.glob !== DEFAULT_GLOB) {
+        queryParams.push(`glob=${params.glob}`);
+      }
+      if (queryParams.length > 0) {
+        url += `?${queryParams.join("&")}`;
+      }
 
       return {
         path: r.path as string,
@@ -743,13 +753,14 @@ function formatSearchResultsAsMarkdown(
   }>,
 ): string {
   if (results.length === 0) {
-    return "No results found.";
+    return "<results>\nNo results found.\n</results>";
   }
 
-  return results
+  const resultsXml = results
     .map((result) => {
-      const lineInfo = result.lineNumber ? ` (line ${result.lineNumber})` : "";
-      return `## [${result.path}](${result.url})${lineInfo}\n\n\`\`\`\n${result.snippet}\n\`\`\``;
+      return `<result contentUrl="${result.url}">\n${result.path}\n\n${result.snippet}\n</result>`;
     })
-    .join("\n\n---\n\n");
+    .join("\n\n");
+  
+  return `<results>\n${resultsXml}\n</results>`;
 }
