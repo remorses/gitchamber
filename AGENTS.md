@@ -71,7 +71,9 @@ You can override the default to read specific implementation files, but **use th
 - Be very specific with patterns to keep operations fast
 - Only use custom globs when you need to examine specific implementation details
 
-If the first /files result shows very few files and you can assume the repo is very small you can then use an url like https://gitchamber.com/repos/cloudflare/sandbox-sdk/main/files?glob=** to list, read and search all files. This should be done only for very small repos
+If the first /files result shows very few files and you can assume the repo is very small you can then use an url like <https://gitchamber.com/repos/cloudflare/sandbox-sdk/main/files?glob=**> to list, read and search all files. This should be done only for very small repos
+
+If you notice a repo has an `examples/something/README.md` it is a good idea to then list all files in the examples to read real code implementations. By using a glob like `examples/**`
 
 ### Examples with Custom Globs
 
@@ -86,6 +88,6 @@ https://gitchamber.com/repos/remorses/fumabase/main/file/website/vite.config.js?
 https://gitchamber.com/repos/remorses/fumabase/main/search/async?website=website/**/*.js
 
 #### All files (NOT RECOMMENDED - very slow)
-https://gitchamber.com/repos/remorses/fumabase/main/files?glob=**/*
+<https://gitchamber.com/repos/remorses/fumabase/main/files?glob=**/*>
 
 **Best Practice:** Stick to the default (markdown/README only) unless you specifically need to examine source code implementations.
