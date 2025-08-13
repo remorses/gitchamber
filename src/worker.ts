@@ -12,7 +12,7 @@ import { openapi } from "spiceflow/openapi";
 import { mcp, addMcpTools } from "spiceflow/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import micromatch from "micromatch";
-import { findLineNumberInContent } from "./utils.js";
+import { findLineNumberInContent, formatFileWithLines, extractSnippetFromContent } from "./utils.js";
 
 /* ---------- Global constants ------------------------- */
 
@@ -627,122 +627,6 @@ const json = (x: unknown) =>
     headers: { "content-type": "application/json" },
   });
 const notFound = () => new Response("Not found", { status: 404 });
-
-
-function extractSnippetFromContent(
-  content: string,
-  searchQuery: string,
-  maxLength: number = 200
-): string {
-  if (!content || !searchQuery) {
-    return "";
-  }
-
-  // Case-insensitive search
-  const lowerContent = content.toLowerCase();
-  const lowerQuery = searchQuery.toLowerCase();
-  const index = lowerContent.indexOf(lowerQuery);
-
-  if (index === -1) {
-    // If not found in content, might be in the path - return first part of content
-    const lines = content.split('\n').slice(0, 3).join('\n');
-    if (lines.length > maxLength) {
-      return lines.substring(0, maxLength) + '...';
-    }
-    return lines;
-  }
-
-  // Extract context around the match
-  const contextRadius = Math.floor((maxLength - searchQuery.length) / 2);
-  const start = Math.max(0, index - contextRadius);
-  const end = Math.min(content.length, index + searchQuery.length + contextRadius);
-
-  let snippet = content.substring(start, end);
-
-  // Add ellipsis if truncated
-  if (start > 0) {
-    snippet = '...' + snippet;
-  }
-  if (end < content.length) {
-    snippet = snippet + '...';
-  }
-
-  // Clean up: try to break at word boundaries
-  if (start > 0) {
-    const firstSpace = snippet.indexOf(' ', 3);
-    if (firstSpace > 3 && firstSpace < 20) {
-      snippet = '...' + snippet.substring(firstSpace + 1);
-    }
-  }
-  if (end < content.length) {
-    const lastSpace = snippet.lastIndexOf(' ', snippet.length - 4);
-    if (lastSpace > snippet.length - 20) {
-      snippet = snippet.substring(0, lastSpace) + '...';
-    }
-  }
-
-  return snippet;
-}
-
-function formatFileWithLines(
-  contents: string,
-  showLineNumbers: boolean,
-  startLine?: number,
-  endLine?: number,
-): string {
-  const lines = contents.split("\n");
-
-  // Filter lines by range if specified
-  const filteredLines = (() => {
-    if (startLine !== undefined || endLine !== undefined) {
-      const start = startLine ? Math.max(0, startLine - 1) : 0; // Convert to 0-based index, ensure non-negative
-      const end = endLine ? Math.min(endLine, lines.length) : lines.length; // Don't exceed file length
-      return lines.slice(start, end);
-    }
-    return lines;
-  })();
-
-  // Check if content is truncated
-  const actualStart = startLine ? Math.max(0, startLine - 1) : 0;
-  const actualEnd = endLine ? Math.min(endLine, lines.length) : lines.length;
-  const hasContentAbove = actualStart > 0;
-  const hasContentBelow = actualEnd < lines.length;
-
-  // Show line numbers if requested or if line ranges are specified
-  const shouldShowLineNumbers =
-    showLineNumbers || startLine !== undefined || endLine !== undefined;
-
-  // Add line numbers if requested
-  if (shouldShowLineNumbers) {
-    const startLineNumber = startLine || 1;
-    const maxLineNumber = startLineNumber + filteredLines.length - 1;
-    const padding = maxLineNumber.toString().length;
-
-    const formattedLines = filteredLines.map((line, index) => {
-      const lineNumber = startLineNumber + index;
-      const paddedNumber = lineNumber.toString().padStart(padding, " ");
-      return `${paddedNumber}  ${line}`;
-    });
-
-    // Add end of file indicator if at the end
-    const result: string[] = [];
-    result.push(...formattedLines);
-    if (!hasContentBelow) {
-      result.push("end of file");
-    }
-
-    return result.join("\n");
-  }
-
-  // For non-line-numbered output, also add end of file indicator
-  const result: string[] = [];
-  result.push(...filteredLines);
-  if (!hasContentBelow) {
-    result.push("end of file");
-  }
-
-  return result.join("\n");
-}
 
 function formatSearchResultsAsMarkdown(
   results: Array<{
