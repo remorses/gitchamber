@@ -26,7 +26,11 @@ describe('GitChamber Production API', () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get('content-type')).toBe('text/markdown; charset=utf-8');
-    expect(text).toMatchInlineSnapshot(`"No results found."`);
+    expect(text).toMatchInlineSnapshot(`
+      "<results>
+      No results found.
+      </results>"
+    `);
   });
 
   it('should get file content without line numbers', async () => {
@@ -171,7 +175,8 @@ describe('GitChamber Production API', () => {
        9  ### Our Standards
       10  
       11  Examples of behavior that contributes to a positive environment for our community include:
-      12  "
+      12  
+      ... 42 more lines"
     `);
   });
 
@@ -237,6 +242,10 @@ describe('GitChamber Production API', () => {
     const text = await response.text();
 
     expect(response.status).toMatchInlineSnapshot(`200`);
-    expect(text).toMatchInlineSnapshot(`"No results found."`);
+    expect(text).toMatchInlineSnapshot(`
+      "<results>
+      No results found.
+      </results>"
+    `);
   });
 }, 1000 * 100);
