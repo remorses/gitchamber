@@ -4,7 +4,7 @@ describe('GitChamber Production API', () => {
   const baseUrl = 'https://gitchamber.com/repos/vercel/next.js/canary';
 
   it('should list files', async () => {
-    const response = await fetch(`${baseUrl}/files`);
+    const response = await fetch(`${baseUrl}/files?force=true`);
     const data = await response.json();
 
     expect(response.status).toBe(200);
@@ -205,4 +205,4 @@ describe('GitChamber Production API', () => {
     expect(response.status).toBe(200);
     expect(text).toBe('No results found.');
   });
-});
+}, 1000 * 100);

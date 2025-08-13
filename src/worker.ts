@@ -330,7 +330,13 @@ async function populateRepo(
     );
   }
 
-  const files: Array<{ path: string; content: string }> = [];
+  // Batch configuration - aim for chunks under 20MB to be safe (well below the 32MB limit)
+  const MAX_BATCH_SIZE = 20 * 1024 * 1024; // 20MB
+  let currentBatch: Array<{ path: string; content: string }> = [];
+  let currentBatchSize = 0;
+  let batchNumber = 0;
+  let totalFiles = 0;
+
   const gz = r.body!.pipeThrough(new DecompressionStream("gzip"));
 
   await parseTar(gz, async (ent) => {
@@ -345,7 +351,24 @@ async function populateRepo(
           fatal: true,
           ignoreBOM: false,
         }).decode(buf);
-        files.push({ path: rel, content: txt });
+        
+        // Calculate the approximate size of this file in the batch
+        // Account for both path and content strings
+        const fileSize = rel.length + txt.length;
+        
+        // If adding this file would exceed the batch size, send the current batch
+        if (currentBatchSize + fileSize > MAX_BATCH_SIZE && currentBatch.length > 0) {
+          console.log(`Sending batch ${batchNumber + 1} with ${currentBatch.length} files (${(currentBatchSize / 1024 / 1024).toFixed(2)}MB)`);
+          await stub.storeFiles(currentBatch, batchNumber === 0);
+          batchNumber++;
+          totalFiles += currentBatch.length;
+          currentBatch = [];
+          currentBatchSize = 0;
+        }
+        
+        // Add file to current batch
+        currentBatch.push({ path: rel, content: txt });
+        currentBatchSize += fileSize;
       } catch {
         // Skip binary files
       }
@@ -353,8 +376,18 @@ async function populateRepo(
     // Skip large files
   });
 
-  // Store files in the durable object
-  return stub.storeFiles(files);
+  // Send any remaining files in the last batch
+  if (currentBatch.length > 0) {
+    console.log(`Sending final batch ${batchNumber + 1} with ${currentBatch.length} files (${(currentBatchSize / 1024 / 1024).toFixed(2)}MB)`);
+    await stub.storeFiles(currentBatch, batchNumber === 0);
+    totalFiles += currentBatch.length;
+  }
+
+  // Finalize the batch operation
+  await stub.finalizeBatch();
+  
+  console.log(`Populated repo with ${totalFiles} files in ${batchNumber + 1} batches`);
+  return { success: true, totalFiles, batches: batchNumber + 1 };
 }
 
 const app = new Spiceflow()
