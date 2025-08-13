@@ -13,6 +13,8 @@ import { mcp, addMcpTools } from "spiceflow/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import micromatch from "micromatch";
 import { findLineNumberInContent, formatFileWithLines, extractSnippetFromContent } from "./utils.js";
+import AGENTS_MD from "../AGENTS.md";
+import { marked } from "marked";
 
 /* ---------- Global constants ------------------------- */
 
@@ -465,6 +467,15 @@ const app = new Spiceflow()
   .state("ctx", {} as ExecutionContext)
   .use(cors())
   .use(openapi({ path: "/openapi.json" }))
+  .route({
+    method: "GET",
+    path: "/",
+    handler: () => {
+      return new Response(AGENTS_MD, {
+        headers: { "content-type": "text/plain; charset=utf-8" },
+      });
+    },
+  })
   .route({
     path: "/sse",
     handler: ({ request, state }) =>
