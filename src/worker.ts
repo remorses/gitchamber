@@ -12,6 +12,10 @@ import { openapi } from "spiceflow/openapi";
 import { mcp, addMcpTools } from "spiceflow/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
+/* ---------- Global constants ------------------------- */
+
+const ENABLE_FTS = false; // Set to true to enable full-text search indexing
+
 /* ---------- ENV interface ---------------------------- */
 
 interface Env {
@@ -36,16 +40,32 @@ export class RepoCache extends DurableObject {
     this.ttl = Number(env.CACHE_TTL_MS ?? 21_600_000); // 6 h default
 
     /* one‑time schema */
-    this.sql.exec(`
-      CREATE TABLE IF NOT EXISTS files (
-        path          TEXT PRIMARY KEY,
-        content       TEXT,
-        firstFetched  INTEGER
-      );
-      CREATE VIRTUAL TABLE IF NOT EXISTS files_fts
-        USING fts5(path, content, tokenize = 'porter');
-      CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, val TEXT);
-    `);
+    if (ENABLE_FTS) {
+      this.sql.exec(`
+        CREATE TABLE IF NOT EXISTS files (
+          path          TEXT PRIMARY KEY,
+          content       TEXT,
+          firstFetched  INTEGER
+        );
+        CREATE VIRTUAL TABLE IF NOT EXISTS files_fts
+          USING fts5(path, content, tokenize = 'porter');
+        CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, val TEXT);
+      `);
+    } else {
+      // Optimized for fast inserts - no additional indexes on content
+      // The PRIMARY KEY on path provides fast path searches
+      // Content searches use table scan with LIKE (acceptable trade-off for fast inserts)
+      this.sql.exec(`
+        CREATE TABLE IF NOT EXISTS files (
+          path          TEXT PRIMARY KEY,
+          content       TEXT,
+          firstFetched  INTEGER
+        );
+        CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, val TEXT);
+
+
+      `);
+    }
   }
 
   async getFiles(params: {
@@ -126,27 +146,61 @@ export class RepoCache extends DurableObject {
     await this.ensureFresh();
     const searchQuery = decodeURIComponent(params.query);
 
-    // Get both snippet and full content to find line numbers
-    // SQLite snippet() extracts text around matches: snippet(table, column, start_mark, end_mark, ellipsis, max_tokens)
-    // -1 means use all columns, '' for no highlighting marks, '...' as ellipsis, 64 max tokens
-    const rows = [
-      ...this.sql.exec(
-        `SELECT
-          files.path,
-          files.content,
-          snippet(files_fts, -1, '', '', '...', 64) as snippet
-        FROM files_fts
-        JOIN files ON files.path = files_fts.path
-        WHERE files_fts MATCH ?
-        ORDER BY rank`,
-        searchQuery,
-      ),
-    ];
+    let rows: any[];
+
+    if (ENABLE_FTS) {
+      // Use FTS when enabled
+      // SQLite snippet() extracts text around matches: snippet(table, column, start_mark, end_mark, ellipsis, max_tokens)
+      // -1 means use all columns, '' for no highlighting marks, '...' as ellipsis, 64 max tokens
+      rows = [
+        ...this.sql.exec(
+          `SELECT
+            files.path,
+            files.content,
+            snippet(files_fts, -1, '', '', '...', 64) as snippet
+          FROM files_fts
+          JOIN files ON files.path = files_fts.path
+          WHERE files_fts MATCH ?
+          ORDER BY rank`,
+          searchQuery,
+        ),
+      ];
+    } else {
+      // Use LIKE queries when FTS is disabled
+      // Search in both path and content, case-insensitive
+      const likePattern = `%${searchQuery}%`;
+      rows = [
+        ...this.sql.exec(
+          `SELECT
+            path,
+            content,
+            NULL as snippet
+          FROM files
+          WHERE path LIKE ? COLLATE NOCASE OR content LIKE ? COLLATE NOCASE
+          ORDER BY
+            CASE
+              WHEN path LIKE ? COLLATE NOCASE THEN 0
+              ELSE 1
+            END,
+            path`,
+          likePattern,
+          likePattern,
+          likePattern,
+        ),
+      ];
+    }
 
     const results = rows.map((r) => {
       const content = r.content as string;
-      // Remove HTML markup and clean up snippet
-      const snippet = (r.snippet as string).replace(/<\/?mark>/g, "");
+      let snippet: string;
+
+      if (ENABLE_FTS) {
+        // Remove HTML markup and clean up snippet from FTS
+        snippet = (r.snippet as string).replace(/<\/?mark>/g, "");
+      } else {
+        // Extract snippet for LIKE search
+        snippet = extractSnippetFromContent(content, searchQuery);
+      }
 
       // Remove ... only from start/end of snippet before searching for line numbers
       const cleanSnippet = snippet.replace(/^\.\.\.|\.\.\.$/, "");
@@ -212,10 +266,14 @@ export class RepoCache extends DurableObject {
     }
   }
 
-  async storeFiles(files: Array<{ path: string; content: string }>) {
-    /* freshen: clear existing rows to avoid orphans */
-    this.sql.exec("DELETE FROM files");
-    this.sql.exec("DELETE FROM files_fts");
+  async storeFiles(files: Array<{ path: string; content: string }>, isFirstBatch: boolean = true) {
+    /* freshen: clear existing rows to avoid orphans on first batch only */
+    if (isFirstBatch) {
+      this.sql.exec("DELETE FROM files");
+      if (ENABLE_FTS) {
+        this.sql.exec("DELETE FROM files_fts");
+      }
+    }
 
     const startTime = Date.now();
 
@@ -228,18 +286,24 @@ export class RepoCache extends DurableObject {
         Date.now(),
       );
       // Index for FTS
-      this.sql.exec(
-        "INSERT INTO files_fts(path,content) VALUES (?,?)",
-        file.path,
-        file.content,
-      );
+      if (ENABLE_FTS) {
+        this.sql.exec(
+          "INSERT INTO files_fts(path,content) VALUES (?,?)",
+          file.path,
+          file.content,
+        );
+      }
     }
 
     const endTime = Date.now();
     const durationSeconds = (endTime - startTime) / 1000;
 
-    console.log(`Data save completed in ${durationSeconds} seconds`);
+    console.log(`Batch save completed in ${durationSeconds} seconds for ${files.length} files`);
 
+    return json({ success: true, filesStored: files.length });
+  }
+
+  async finalizeBatch() {
     const now = Date.now();
     this.sql.exec("INSERT OR REPLACE INTO meta VALUES ('lastFetched',?)", now);
 
@@ -247,7 +311,7 @@ export class RepoCache extends DurableObject {
     await this.ctx.storage.setAlarm(alarmTime);
     console.log(`Set cleanup alarm for ${new Date(alarmTime)}`);
 
-    return json({ success: true, filesStored: files.length });
+    return json({ success: true });
   }
 }
 
@@ -316,12 +380,17 @@ const app = new Spiceflow()
   .route({
     method: "GET",
     path: "/repos/:owner/:repo/:branch/files",
-    handler: async ({ params, state }) => {
+    handler: async ({ params, query, state }) => {
       const { owner, repo, branch } = params;
+      const force = query.force === "true";
       const id = state.env.REPO_CACHE.idFromName(`${owner}/${repo}/${branch}`);
       const stub = state.env.REPO_CACHE.get(id) as any as RepoCache;
 
       try {
+        if (force) {
+          // Force refresh by directly populating
+          await populateRepo(owner, repo, branch, stub);
+        }
         return await stub.getFiles({ owner, repo, branch });
       } catch (error: any) {
         if (error.message === "NEEDS_REFRESH") {
@@ -342,6 +411,7 @@ const app = new Spiceflow()
     handler: async ({ params, query, state }) => {
       const { owner, repo, branch, "*": filePath } = params;
       const showLineNumbers = query.showLineNumbers === "true";
+      const force = query.force === "true";
       const start = query.start ? parseInt(query.start) : undefined;
       const end = query.end ? parseInt(query.end) : undefined;
 
@@ -353,6 +423,10 @@ const app = new Spiceflow()
       const stub = state.env.REPO_CACHE.get(id) as any as RepoCache;
 
       try {
+        if (force) {
+          // Force refresh by directly populating
+          await populateRepo(owner, repo, branch, stub);
+        }
         return await stub.getFile({
           owner,
           repo,
@@ -384,12 +458,17 @@ const app = new Spiceflow()
   .route({
     method: "GET",
     path: "/repos/:owner/:repo/:branch/search/*",
-    handler: async ({ params, state }) => {
+    handler: async ({ params, query: queryParams, state }) => {
       const { owner, repo, branch, "*": query } = params;
+      const force = queryParams.force === "true";
       const id = state.env.REPO_CACHE.idFromName(`${owner}/${repo}/${branch}`);
       const stub = state.env.REPO_CACHE.get(id) as any as RepoCache;
 
       try {
+        if (force) {
+          // Force refresh by directly populating
+          await populateRepo(owner, repo, branch, stub);
+        }
         return await stub.searchFiles({ owner, repo, branch, query });
       } catch (error: any) {
         if (error.message === "NEEDS_REFRESH") {
@@ -485,6 +564,61 @@ export function findLineNumberInContent(
     console.error("Error finding line number:", e);
     return null;
   }
+}
+
+function extractSnippetFromContent(
+  content: string,
+  searchQuery: string,
+  maxLength: number = 200
+): string {
+  if (!content || !searchQuery) {
+    return "";
+  }
+
+  // Case-insensitive search
+  const lowerContent = content.toLowerCase();
+  const lowerQuery = searchQuery.toLowerCase();
+  const index = lowerContent.indexOf(lowerQuery);
+
+  if (index === -1) {
+    // If not found in content, might be in the path - return first part of content
+    const lines = content.split('\n').slice(0, 3).join('\n');
+    if (lines.length > maxLength) {
+      return lines.substring(0, maxLength) + '...';
+    }
+    return lines;
+  }
+
+  // Extract context around the match
+  const contextRadius = Math.floor((maxLength - searchQuery.length) / 2);
+  const start = Math.max(0, index - contextRadius);
+  const end = Math.min(content.length, index + searchQuery.length + contextRadius);
+
+  let snippet = content.substring(start, end);
+
+  // Add ellipsis if truncated
+  if (start > 0) {
+    snippet = '...' + snippet;
+  }
+  if (end < content.length) {
+    snippet = snippet + '...';
+  }
+
+  // Clean up: try to break at word boundaries
+  if (start > 0) {
+    const firstSpace = snippet.indexOf(' ', 3);
+    if (firstSpace > 3 && firstSpace < 20) {
+      snippet = '...' + snippet.substring(firstSpace + 1);
+    }
+  }
+  if (end < content.length) {
+    const lastSpace = snippet.lastIndexOf(' ', snippet.length - 4);
+    if (lastSpace > snippet.length - 20) {
+      snippet = snippet.substring(0, lastSpace) + '...';
+    }
+  }
+
+  return snippet;
 }
 
 function formatFileWithLines(
