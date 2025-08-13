@@ -71,6 +71,8 @@ You can override the default to read specific implementation files, but **use th
 - Be very specific with patterns to keep operations fast
 - Only use custom globs when you need to examine specific implementation details
 
+If the first /files result shows very few files and you can assume the repo is very small you can then use an url like https://gitchamber.com/repos/cloudflare/sandbox-sdk/main/files?glob=** to list, read and search all files. This should be done only for very small repos
+
 ### Examples with Custom Globs
 
 #### TypeScript files only (use same glob for all operations)
