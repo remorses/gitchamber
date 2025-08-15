@@ -21,6 +21,7 @@ import { SpiceflowRequest } from "spiceflow/dist/spiceflow";
 
 const ENABLE_FTS = false; // Set to true to enable full-text search indexing
 const DEFAULT_GLOB = "**/{*.md,*.mdx,README*}"; // Default to markdown and README files only
+const MAX_FILE_LINES = 1000; // Maximum number of lines to return for a file
 
 /* ---------- Region support --------------------------- */
 
@@ -243,25 +244,16 @@ export class RepoCache extends DurableObject {
 
     const content = row.content as string;
 
-    // Apply line formatting if any formatting options are specified
-    if (
-      params.showLineNumbers ||
-      params.start !== undefined ||
-      params.end !== undefined
-    ) {
-      const formatted = formatFileWithLines(
-        content,
-        params.showLineNumbers || false,
-        params.start,
-        params.end,
-      );
-      return new Response(formatted, {
-        headers: { "content-type": "text/plain; charset=utf-8" },
-      });
-    }
+    // Always use formatFileWithLines to ensure consistent truncation at MAX_FILE_LINES
+    const formatted = formatFileWithLines({
+      content,
+      showLineNumbers: params.showLineNumbers ?? false,
+      startLine: params.start,
+      endLine: params.end,
+      maxLines: MAX_FILE_LINES
+    });
 
-    // Return raw text content
-    return new Response(content, {
+    return new Response(formatted, {
       headers: { "content-type": "text/plain; charset=utf-8" },
     });
   }

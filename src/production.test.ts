@@ -176,7 +176,7 @@ describe('GitChamber Production API', () => {
       10  
       11  Examples of behavior that contributes to a positive environment for our community include:
       12  
-      ... 42 more lines"
+      [File truncated: 42 more lines]"
     `);
   });
 

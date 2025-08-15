@@ -47,19 +47,29 @@ export function findLineNumberInContent(
   }
 }
 
-export function formatFileWithLines(
-  contents: string,
-  showLineNumbers: boolean,
-  startLine?: number,
-  endLine?: number,
-): string {
+interface FormatFileOptions {
+  content: string;
+  showLineNumbers?: boolean;
+  startLine?: number;
+  endLine?: number;
+  maxLines?: number;
+}
+
+export function formatFileWithLines(options: FormatFileOptions): string {
+  const { content: contents, showLineNumbers = false, startLine, endLine, maxLines = 1000 } = options;
   const lines = contents.split("\n");
+
+  // Apply max lines limit if no specific range is provided
+  let effectiveEndLine = endLine;
+  if (startLine === undefined && endLine === undefined && lines.length > maxLines) {
+    effectiveEndLine = maxLines;
+  }
 
   // Filter lines by range if specified
   const filteredLines = (() => {
-    if (startLine !== undefined || endLine !== undefined) {
+    if (startLine !== undefined || effectiveEndLine !== undefined) {
       const start = startLine ? Math.max(0, startLine - 1) : 0; // Convert to 0-based index, ensure non-negative
-      const end = endLine ? Math.min(endLine, lines.length) : lines.length; // Don't exceed file length
+      const end = effectiveEndLine ? Math.min(effectiveEndLine, lines.length) : lines.length; // Don't exceed file length
       return lines.slice(start, end);
     }
     return lines;
@@ -67,7 +77,7 @@ export function formatFileWithLines(
 
   // Check if content is truncated
   const actualStart = startLine ? Math.max(0, startLine - 1) : 0;
-  const actualEnd = endLine ? Math.min(endLine, lines.length) : lines.length;
+  const actualEnd = effectiveEndLine ? Math.min(effectiveEndLine, lines.length) : lines.length;
   const hasContentAbove = actualStart > 0;
   const hasContentBelow = actualEnd < lines.length;
 
@@ -76,7 +86,7 @@ export function formatFileWithLines(
 
   // Show line numbers if requested or if line ranges are specified
   const shouldShowLineNumbers =
-    showLineNumbers || startLine !== undefined || endLine !== undefined;
+    showLineNumbers || startLine !== undefined || effectiveEndLine !== undefined;
 
   // Add line numbers if requested
   if (shouldShowLineNumbers) {
@@ -95,8 +105,8 @@ export function formatFileWithLines(
     result.push(...formattedLines);
     if (!hasContentBelow) {
       result.push("end of file");
-    } else {
-      result.push(`... ${linesRemaining} more lines`);
+    } else if (linesRemaining > 0) {
+      result.push(`[File truncated: ${linesRemaining} more lines]`);
     }
 
     return result.join("\n");
@@ -105,10 +115,10 @@ export function formatFileWithLines(
   // For non-line-numbered output, also add end of file indicator or lines remaining
   const result: string[] = [];
   result.push(...filteredLines);
-  if (!hasContentBelow) {
-    result.push("end of file");
-  } else {
-    result.push(`... ${linesRemaining} more lines`);
+  if (!hasContentBelow && filteredLines.length > 0) {
+    // Don't add "end of file" for raw content unless explicitly truncated
+  } else if (linesRemaining > 0) {
+    result.push(`\n[File truncated: ${linesRemaining} more lines]`);
   }
 
   return result.join("\n");

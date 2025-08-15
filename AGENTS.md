@@ -91,3 +91,7 @@ https://gitchamber.com/repos/remorses/fumabase/main/search/async?website=website
 <https://gitchamber.com/repos/remorses/fumabase/main/files?glob=**/*>
 
 **Best Practice:** Stick to the default (markdown/README only) unless you specifically need to examine source code implementations.
+
+## Reading responses
+
+Agents should fetch these pages using the command `curl gitchamber.com/...` if available. This is preferred over generic web fetch tool because fetch tool may require additional params like `prompt` or may format the result with another LLM and make it less useful. Instead use curl and the params ?start and end to paginate files content
