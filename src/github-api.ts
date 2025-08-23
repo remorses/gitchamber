@@ -29,7 +29,8 @@ export async function fetchGitHubBranches(owner: string, repo: string, githubTok
   }
 
   try {
-    const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/branches?per_page=10`, {
+    // Simple approach: just get branches, prioritize common names
+    const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/branches?per_page=100`, {
       headers
     });
 
@@ -44,11 +45,37 @@ export async function fetchGitHubBranches(owner: string, repo: string, githubTok
     }
 
     const branches = await response.json() as GitHubBranch[];
-
-    // The basic branches endpoint doesn't include commit dates, so we can't sort by date
-    // We'll just return them as-is and fetch details separately when needed
-
-    return { branches };
+    
+    // Prioritize common branch names
+    const priorityNames = ['main', 'master', 'canary', 'develop', 'dev', 'staging', 'release', 'production', 'beta', 'next'];
+    
+    const priorityBranches: GitHubBranch[] = [];
+    const otherBranches: GitHubBranch[] = [];
+    
+    branches.forEach(branch => {
+      // Check exact match first
+      if (priorityNames.includes(branch.name)) {
+        priorityBranches.push(branch);
+      } else {
+        otherBranches.push(branch);
+      }
+    });
+    
+    // Sort priority branches by importance
+    priorityBranches.sort((a, b) => {
+      const aIndex = priorityNames.indexOf(a.name);
+      const bIndex = priorityNames.indexOf(b.name);
+      return aIndex - bIndex;
+    });
+    
+    // Combine: priority branches first, then first few alphabetical others
+    const result = [
+      ...priorityBranches,
+      ...otherBranches.slice(0, Math.max(10 - priorityBranches.length, 0))
+    ];
+    
+    // Return up to 10 branches
+    return { branches: result };
   } catch (error) {
     console.error('Error fetching GitHub branches:', error);
     console.error('Request was for:', `${owner}/${repo}`);
