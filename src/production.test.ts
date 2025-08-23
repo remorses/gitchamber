@@ -1,6 +1,6 @@
 import { describe, it } from "vitest";
 
-describe.parallel(
+describe(
   "GitChamber Production API",
   () => {
     const baseUrl = "https://gitchamber.com/repos/vercel/next.js/canary";
@@ -114,62 +114,62 @@ describe.parallel(
         "text/plain; charset=utf-8",
       );
       expect(text).toMatchInlineSnapshot(`
-      " 1  ## Code of Conduct
-       2
-       3  ### Our Pledge
-       4
-       5  We as members, contributors, and leaders pledge to make participation in our community a harassment-free experience for everyone, regardless of age, body size, visible or invisible disability, ethnicity, sex characteristics, gender identity and expression, level of experience, education, socio-economic status, nationality, personal appearance, race, caste, color, religion, or sexual identity and orientation.
-       6
-       7  We pledge to act and interact in ways that contribute to an open, welcoming, diverse, inclusive, and healthy community.
-       8
-       9  ### Our Standards
-      10
-      11  Examples of behavior that contributes to a positive environment for our community include:
-      12
-      13  - Demonstrating empathy and kindness toward other people
-      14  - Being respectful of differing opinions, viewpoints, and experiences
-      15  - Giving and gracefully accepting constructive feedback
-      16  - Accepting responsibility and apologizing to those affected by our mistakes, and learning from the experience
-      17  - Focusing on what is best not just for us as individuals, but for the overall community
-      18
-      19  Examples of unacceptable behavior include:
-      20
-      21  - The use of sexualized language or imagery, and sexual attention or advances of any kind
-      22  - Trolling, insulting or derogatory comments, and personal or political attacks
-      23  - Public or private harassment
-      24  - Publishing others’ private information, such as a physical or email address, without their explicit permission
-      25  - Other conduct which could reasonably be considered inappropriate in a professional setting
-      26
-      27  ### Enforcement Responsibilities
-      28
-      29  Project maintainers are responsible for clarifying and enforcing our standards of acceptable behavior and will take appropriate and fair corrective action in response to any behavior that they deem inappropriate, threatening, offensive, or harmful.
-      30
-      31  Project maintainers have the right and responsibility to remove, edit, or reject comments, commits, code, wiki edits, issues, and other contributions that are not aligned to this Code of Conduct, and will communicate reasons for moderation decisions when appropriate.
-      32
-      33  ### Scope
-      34
-      35  This Code of Conduct applies within all community spaces, and also applies when an individual is officially representing the community in public spaces. Examples of representing our community include using an official e-mail address, posting via an official social media account, or acting as an appointed representative at an online or offline event.
-      36
-      37  ### Enforcement
-      38
-      39  Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the project team responsible for enforcement at [coc@vercel.com](mailto:coc@vercel.com). All complaints will be reviewed and investigated promptly and fairly.
-      40
-      41  All project maintainers are obligated to respect the privacy and security of the reporter of any incident.
-      42
-      43  Project maintainers who do not follow or enforce the Code of Conduct in good
-      44  faith may face temporary or permanent repercussions as determined by other
-      45  members of the project's leadership.
-      46
-      47  ### Attribution
-      48
-      49  This Code of Conduct is adapted from the [Contributor Covenant][homepage], version 2.1,
-      50  available at [https://www.contributor-covenant.org/version/2/1/code_of_conduct/][version]
-      51
-      52  [homepage]: http://contributor-covenant.org
-      53  [version]: https://www.contributor-covenant.org/version/2/1
-      54
-      end of file"
-    `);
+        " 1  ## Code of Conduct
+         2  
+         3  ### Our Pledge
+         4  
+         5  We as members, contributors, and leaders pledge to make participation in our community a harassment-free experience for everyone, regardless of age, body size, visible or invisible disability, ethnicity, sex characteristics, gender identity and expression, level of experience, education, socio-economic status, nationality, personal appearance, race, caste, color, religion, or sexual identity and orientation.
+         6  
+         7  We pledge to act and interact in ways that contribute to an open, welcoming, diverse, inclusive, and healthy community.
+         8  
+         9  ### Our Standards
+        10  
+        11  Examples of behavior that contributes to a positive environment for our community include:
+        12  
+        13  - Demonstrating empathy and kindness toward other people
+        14  - Being respectful of differing opinions, viewpoints, and experiences
+        15  - Giving and gracefully accepting constructive feedback
+        16  - Accepting responsibility and apologizing to those affected by our mistakes, and learning from the experience
+        17  - Focusing on what is best not just for us as individuals, but for the overall community
+        18  
+        19  Examples of unacceptable behavior include:
+        20  
+        21  - The use of sexualized language or imagery, and sexual attention or advances of any kind
+        22  - Trolling, insulting or derogatory comments, and personal or political attacks
+        23  - Public or private harassment
+        24  - Publishing others’ private information, such as a physical or email address, without their explicit permission
+        25  - Other conduct which could reasonably be considered inappropriate in a professional setting
+        26  
+        27  ### Enforcement Responsibilities
+        28  
+        29  Project maintainers are responsible for clarifying and enforcing our standards of acceptable behavior and will take appropriate and fair corrective action in response to any behavior that they deem inappropriate, threatening, offensive, or harmful.
+        30  
+        31  Project maintainers have the right and responsibility to remove, edit, or reject comments, commits, code, wiki edits, issues, and other contributions that are not aligned to this Code of Conduct, and will communicate reasons for moderation decisions when appropriate.
+        32  
+        33  ### Scope
+        34  
+        35  This Code of Conduct applies within all community spaces, and also applies when an individual is officially representing the community in public spaces. Examples of representing our community include using an official e-mail address, posting via an official social media account, or acting as an appointed representative at an online or offline event.
+        36  
+        37  ### Enforcement
+        38  
+        39  Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the project team responsible for enforcement at [coc@vercel.com](mailto:coc@vercel.com). All complaints will be reviewed and investigated promptly and fairly.
+        40  
+        41  All project maintainers are obligated to respect the privacy and security of the reporter of any incident.
+        42  
+        43  Project maintainers who do not follow or enforce the Code of Conduct in good
+        44  faith may face temporary or permanent repercussions as determined by other
+        45  members of the project's leadership.
+        46  
+        47  ### Attribution
+        48  
+        49  This Code of Conduct is adapted from the [Contributor Covenant][homepage], version 2.1,
+        50  available at [https://www.contributor-covenant.org/version/2/1/code_of_conduct/][version]
+        51  
+        52  [homepage]: http://contributor-covenant.org
+        53  [version]: https://www.contributor-covenant.org/version/2/1
+        54  
+        end of file"
+      `);
     });
 
     it("should get file content with start and end line numbers", async ({ expect }) => {
@@ -183,15 +183,15 @@ describe.parallel(
         "text/plain; charset=utf-8",
       );
       expect(text).toMatchInlineSnapshot(`
-      " 6
-       7  We pledge to act and interact in ways that contribute to an open, welcoming, diverse, inclusive, and healthy community.
-       8
-       9  ### Our Standards
-      10
-      11  Examples of behavior that contributes to a positive environment for our community include:
-      12
-      [File truncated: 42 more lines]"
-    `);
+        " 6  
+         7  We pledge to act and interact in ways that contribute to an open, welcoming, diverse, inclusive, and healthy community.
+         8  
+         9  ### Our Standards
+        10  
+        11  Examples of behavior that contributes to a positive environment for our community include:
+        12  
+        [File truncated: 42 more lines]"
+      `);
     });
 
     it("should get file content with only start line number", async ({ expect }) => {
@@ -201,43 +201,43 @@ describe.parallel(
       const text = await response.text();
 
       expect(text).toMatchInlineSnapshot(`
-      "20
-      21  - The use of sexualized language or imagery, and sexual attention or advances of any kind
-      22  - Trolling, insulting or derogatory comments, and personal or political attacks
-      23  - Public or private harassment
-      24  - Publishing others’ private information, such as a physical or email address, without their explicit permission
-      25  - Other conduct which could reasonably be considered inappropriate in a professional setting
-      26
-      27  ### Enforcement Responsibilities
-      28
-      29  Project maintainers are responsible for clarifying and enforcing our standards of acceptable behavior and will take appropriate and fair corrective action in response to any behavior that they deem inappropriate, threatening, offensive, or harmful.
-      30
-      31  Project maintainers have the right and responsibility to remove, edit, or reject comments, commits, code, wiki edits, issues, and other contributions that are not aligned to this Code of Conduct, and will communicate reasons for moderation decisions when appropriate.
-      32
-      33  ### Scope
-      34
-      35  This Code of Conduct applies within all community spaces, and also applies when an individual is officially representing the community in public spaces. Examples of representing our community include using an official e-mail address, posting via an official social media account, or acting as an appointed representative at an online or offline event.
-      36
-      37  ### Enforcement
-      38
-      39  Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the project team responsible for enforcement at [coc@vercel.com](mailto:coc@vercel.com). All complaints will be reviewed and investigated promptly and fairly.
-      40
-      41  All project maintainers are obligated to respect the privacy and security of the reporter of any incident.
-      42
-      43  Project maintainers who do not follow or enforce the Code of Conduct in good
-      44  faith may face temporary or permanent repercussions as determined by other
-      45  members of the project's leadership.
-      46
-      47  ### Attribution
-      48
-      49  This Code of Conduct is adapted from the [Contributor Covenant][homepage], version 2.1,
-      50  available at [https://www.contributor-covenant.org/version/2/1/code_of_conduct/][version]
-      51
-      52  [homepage]: http://contributor-covenant.org
-      53  [version]: https://www.contributor-covenant.org/version/2/1
-      54
-      end of file"
-    `);
+        "20  
+        21  - The use of sexualized language or imagery, and sexual attention or advances of any kind
+        22  - Trolling, insulting or derogatory comments, and personal or political attacks
+        23  - Public or private harassment
+        24  - Publishing others’ private information, such as a physical or email address, without their explicit permission
+        25  - Other conduct which could reasonably be considered inappropriate in a professional setting
+        26  
+        27  ### Enforcement Responsibilities
+        28  
+        29  Project maintainers are responsible for clarifying and enforcing our standards of acceptable behavior and will take appropriate and fair corrective action in response to any behavior that they deem inappropriate, threatening, offensive, or harmful.
+        30  
+        31  Project maintainers have the right and responsibility to remove, edit, or reject comments, commits, code, wiki edits, issues, and other contributions that are not aligned to this Code of Conduct, and will communicate reasons for moderation decisions when appropriate.
+        32  
+        33  ### Scope
+        34  
+        35  This Code of Conduct applies within all community spaces, and also applies when an individual is officially representing the community in public spaces. Examples of representing our community include using an official e-mail address, posting via an official social media account, or acting as an appointed representative at an online or offline event.
+        36  
+        37  ### Enforcement
+        38  
+        39  Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the project team responsible for enforcement at [coc@vercel.com](mailto:coc@vercel.com). All complaints will be reviewed and investigated promptly and fairly.
+        40  
+        41  All project maintainers are obligated to respect the privacy and security of the reporter of any incident.
+        42  
+        43  Project maintainers who do not follow or enforce the Code of Conduct in good
+        44  faith may face temporary or permanent repercussions as determined by other
+        45  members of the project's leadership.
+        46  
+        47  ### Attribution
+        48  
+        49  This Code of Conduct is adapted from the [Contributor Covenant][homepage], version 2.1,
+        50  available at [https://www.contributor-covenant.org/version/2/1/code_of_conduct/][version]
+        51  
+        52  [homepage]: http://contributor-covenant.org
+        53  [version]: https://www.contributor-covenant.org/version/2/1
+        54  
+        end of file"
+      `);
 
       expect(response.status).toBe(200);
       expect(response.headers.get("content-type")).toBe(
@@ -294,14 +294,20 @@ describe.parallel(
       // Check that the message structure includes branch names
       expect(data.error).toBe("Branch not found");
       expect(data.message).toMatchInlineSnapshot(`
-      "Branch 'non-existent-branch-999' does not exist in vercel/next.js.
+        "Branch 'non-existent-branch-999' does not exist in vercel/next.js.
 
-      Available branches:
-        - main
-        - canary
-        - ... (other branches)
-      "
-    `);
+        Available branches:
+          - 01-02-Copy_58398
+          - 01-02-Rename___next_f_to___rsc_payload
+          - 01-02-Try_removing_partial_manifest
+          - 01-03--_implemented_api_invocation_logic_for_feedback_thumb_up_down_-_added_component_test_to_erroroverlaylayout_and_fixed_bug_in_clip-rule_etc
+          - 01-05-Rename_acceptance_directory_to_acceptance-pages
+          - 01-05-Start_typechecking_at_the_same_time_between_pages_and_app_router
+          - 01-10-Support_any_value_in_RECORD_REPLAY
+          - 01-13-handle_pnpm-workspace.yaml_while_searching_for_monorepo_root
+          - 01-16-Update_ReactRefreshRegression_test_snapshot_for_Turbopack
+          - 01-17-test_lucide-react_import"
+      `);
     });
 
     it("should handle non-existent repository with clear error", async ({ expect }) => {
