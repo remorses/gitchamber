@@ -475,20 +475,62 @@ export class RepoCache extends DurableObject {
   }
 }
 
+type PopulateResult = 
+  | { success: true; totalFiles: number; batches: number }
+  | { success: false; error: 'REPO_NOT_FOUND'; message: string }
+  | { success: false; error: 'BRANCH_NOT_FOUND'; message: string; branches?: string[] }
+  | { success: false; error: 'FETCH_FAILED'; message: string };
+
 async function populateRepo(
   owner: string,
   repo: string,
   branch: string,
   stub: RepoCache,
   glob?: string,
-) {
+  githubToken?: string,
+): Promise<PopulateResult> {
   // Use direct GitHub archive URL - no authentication required
   const url = `https://github.com/${owner}/${repo}/archive/${branch}.tar.gz`;
   const r = await fetch(url);
   if (!r.ok) {
-    throw new Error(
-      `GitHub archive fetch failed (${r.status}) for ${owner}/${repo}/${branch}. URL: ${url}`,
-    );
+    if (r.status === 404) {
+      // When tar URL returns 404, fetch available branches to provide helpful error
+      const { fetchGitHubBranches } = await import('./github-api.js');
+      const branchInfo = await fetchGitHubBranches(owner, repo, githubToken);
+      
+      if (branchInfo.error === 'REPO_NOT_FOUND') {
+        return {
+          success: false,
+          error: 'REPO_NOT_FOUND',
+          message: `Repository ${owner}/${repo} does not exist or is private`
+        };
+      }
+      
+      if (branchInfo.branches && branchInfo.branches.length > 0) {
+        const branches = branchInfo.branches
+          .slice(0, 10)  // Show up to 10 branches
+          .map(b => b.name);
+        
+        return {
+          success: false,
+          error: 'BRANCH_NOT_FOUND',
+          message: `Branch '${branch}' does not exist in ${owner}/${repo}.`,
+          branches
+        };
+      } else {
+        return {
+          success: false,
+          error: 'BRANCH_NOT_FOUND',
+          message: `Branch '${branch}' does not exist in ${owner}/${repo}.`
+        };
+      }
+    }
+    
+    return {
+      success: false,
+      error: 'FETCH_FAILED',
+      message: `GitHub archive fetch failed (${r.status}) for ${owner}/${repo}/${branch}. URL: ${url}`
+    };
   }
 
   // Batch configuration - aim for chunks under 20MB to be safe (well below the 32MB limit)
@@ -553,7 +595,7 @@ async function populateRepo(
   await stub.finalizeBatch(glob);
 
   console.log(`Populated repo with ${totalFiles} files in ${batchNumber + 1} batches`);
-  return { success: true, totalFiles, batches: batchNumber + 1 };
+  return { success: true, totalFiles, batches: batchNumber + 1 } as const;
 }
 
 const app = new Spiceflow()
@@ -693,23 +735,44 @@ const app = new Spiceflow()
       const id = state.env.REPO_CACHE.idFromName(cacheKey);
       const stub = state.env.REPO_CACHE.get(id) as any as RepoCache;
 
-      try {
-        if (force) {
-          // Force refresh by directly populating
-          await populateRepo(owner, repo, branch, stub, glob);
+      // Always populate
+      const result = await populateRepo(owner, repo, branch, stub, glob, state.env.GITHUB_TOKEN);
+      if (!result.success) {
+        if (result.error === 'REPO_NOT_FOUND') {
+          return new Response(JSON.stringify({
+            error: 'Repository not found',
+            message: result.message,
+            suggestion: 'Please check that the repository exists and is public, or that you have access to it.'
+          }, null, 2), {
+            status: 404,
+            headers: { "content-type": "application/json" }
+          });
+        } else if (result.error === 'BRANCH_NOT_FOUND') {
+          const fullMessage = result.branches && result.branches.length > 0
+            ? `${result.message}\n\nAvailable branches:\n${result.branches.map(b => `  - ${b}`).join('\n')}`
+            : result.message;
+          return new Response(JSON.stringify({
+            error: 'Branch not found',
+            message: fullMessage,
+            availableBranches: result.branches,
+            suggestion: result.branches && result.branches.length > 0 
+              ? 'Try one of the available branches listed above.'
+              : 'Please verify the branch name or check the repository directly.'
+          }, null, 2), {
+            status: 404,
+            headers: { "content-type": "application/json" }
+          });
+        } else {
+          return new Response(JSON.stringify({
+            error: 'Request failed',
+            message: result.message
+          }, null, 2), {
+            status: 500,
+            headers: { "content-type": "application/json" }
+          });
         }
-        return await stub.getFiles({ owner, repo, branch, glob });
-      } catch (error: any) {
-        if (error.message === "NEEDS_REFRESH") {
-          // Populate in the worker
-
-          await populateRepo(owner, repo, branch, stub, glob);
-
-          // Try again after populating
-          return stub.getFiles({ owner, repo, branch, glob });
-        }
-        throw error;
       }
+      return await stub.getFiles({ owner, repo, branch, glob });
     },
   })
   .route({
@@ -736,39 +799,53 @@ const app = new Spiceflow()
       const id = state.env.REPO_CACHE.idFromName(cacheKey);
       const stub = state.env.REPO_CACHE.get(id) as any as RepoCache;
 
-      try {
-        if (force) {
-          // Force refresh by directly populating
-          await populateRepo(owner, repo, branch, stub, glob);
-        }
-        return await stub.getFile({
-          owner,
-          repo,
-          branch,
-          filePath,
-          showLineNumbers,
-          start,
-          end: finalEnd,
-          glob,
-        });
-      } catch (error: any) {
-        if (error.message === "NEEDS_REFRESH") {
-          // Populate in the worker
-          await populateRepo(owner, repo, branch, stub, glob);
-          // Try again after populating
-          return stub.getFile({
-            owner,
-            repo,
-            branch,
-            filePath,
-            showLineNumbers,
-            start,
-            end: finalEnd,
-            glob,
+      // Always populate
+      const result = await populateRepo(owner, repo, branch, stub, glob, state.env.GITHUB_TOKEN);
+      if (!result.success) {
+        if (result.error === 'REPO_NOT_FOUND') {
+          return new Response(JSON.stringify({
+            error: 'Repository not found',
+            message: result.message,
+            suggestion: 'Please check that the repository exists and is public, or that you have access to it.'
+          }, null, 2), {
+            status: 404,
+            headers: { "content-type": "application/json" }
+          });
+        } else if (result.error === 'BRANCH_NOT_FOUND') {
+          const fullMessage = result.branches && result.branches.length > 0
+            ? `${result.message}\n\nAvailable branches:\n${result.branches.map(b => `  - ${b}`).join('\n')}`
+            : result.message;
+          return new Response(JSON.stringify({
+            error: 'Branch not found',
+            message: fullMessage,
+            availableBranches: result.branches,
+            suggestion: result.branches && result.branches.length > 0 
+              ? 'Try one of the available branches listed above.'
+              : 'Please verify the branch name or check the repository directly.'
+          }, null, 2), {
+            status: 404,
+            headers: { "content-type": "application/json" }
+          });
+        } else {
+          return new Response(JSON.stringify({
+            error: 'Request failed',
+            message: result.message
+          }, null, 2), {
+            status: 500,
+            headers: { "content-type": "application/json" }
           });
         }
-        throw error;
       }
+      return await stub.getFile({
+        owner,
+        repo,
+        branch,
+        filePath,
+        showLineNumbers,
+        start,
+        end: finalEnd,
+        glob,
+      });
     },
   })
   .route({
@@ -788,21 +865,44 @@ const app = new Spiceflow()
       const id = state.env.REPO_CACHE.idFromName(cacheKey);
       const stub = state.env.REPO_CACHE.get(id) as any as RepoCache;
 
-      try {
-        if (force) {
-          // Force refresh by directly populating
-          await populateRepo(owner, repo, branch, stub, glob);
+      // Always populate
+      const result = await populateRepo(owner, repo, branch, stub, glob, state.env.GITHUB_TOKEN);
+      if (!result.success) {
+        if (result.error === 'REPO_NOT_FOUND') {
+          return new Response(JSON.stringify({
+            error: 'Repository not found',
+            message: result.message,
+            suggestion: 'Please check that the repository exists and is public, or that you have access to it.'
+          }, null, 2), {
+            status: 404,
+            headers: { "content-type": "application/json" }
+          });
+        } else if (result.error === 'BRANCH_NOT_FOUND') {
+          const fullMessage = result.branches && result.branches.length > 0
+            ? `${result.message}\n\nAvailable branches:\n${result.branches.map(b => `  - ${b}`).join('\n')}`
+            : result.message;
+          return new Response(JSON.stringify({
+            error: 'Branch not found',
+            message: fullMessage,
+            availableBranches: result.branches,
+            suggestion: result.branches && result.branches.length > 0 
+              ? 'Try one of the available branches listed above.'
+              : 'Please verify the branch name or check the repository directly.'
+          }, null, 2), {
+            status: 404,
+            headers: { "content-type": "application/json" }
+          });
+        } else {
+          return new Response(JSON.stringify({
+            error: 'Request failed',
+            message: result.message
+          }, null, 2), {
+            status: 500,
+            headers: { "content-type": "application/json" }
+          });
         }
-        return await stub.searchFiles({ owner, repo, branch, query, glob });
-      } catch (error: any) {
-        if (error.message === "NEEDS_REFRESH") {
-          // Populate in the worker
-          await populateRepo(owner, repo, branch, stub, glob);
-          // Try again after populating
-          return stub.searchFiles({ owner, repo, branch, query, glob });
-        }
-        throw error;
       }
+      return await stub.searchFiles({ owner, repo, branch, query, glob });
     },
   });
 
