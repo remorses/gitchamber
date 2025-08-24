@@ -30,11 +30,6 @@ describe('fetchGitHubBranches - REAL API TESTS', () => {
         "01-13-handle_pnpm-workspace.yaml_while_searching_for_monorepo_root",
         "01-16-Update_ReactRefreshRegression_test_snapshot_for_Turbopack",
         "01-17-test_lucide-react_import",
-        "01-19-Move_next/react-dev-overlay_into_next",
-        "01-19-Remove_module_scope_variable_in_hot-dev-client",
-        "01-23-tweak_prefetch_cache_key_prefix_logic",
-        "01-24-Turbopack_test_updates",
-        "01-30-Add_test_for_issue_45393",
       ]
     `);
   }, 10000);
@@ -44,8 +39,8 @@ describe('fetchGitHubBranches - REAL API TESTS', () => {
 
     expect(result).toMatchInlineSnapshot(`
       {
-        "error": "RATE_LIMITED",
-        "message": "GitHub API rate limit exceeded",
+        "error": "REPO_NOT_FOUND",
+        "message": "Repository vercel/this-repo-definitely-does-not-exist-123456789 not found or is private",
       }
     `);
   }, 10000);

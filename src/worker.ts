@@ -16,6 +16,7 @@ import { findLineNumberInContent, formatFileWithLines, extractSnippetFromContent
 import AGENTS_MD from "../AGENTS.md";
 import { marked } from "marked";
 import { SpiceflowRequest } from "spiceflow/dist/spiceflow";
+import { fetchGitHubBranches } from "./github-api.js";
 
 /* ---------- Global constants ------------------------- */
 
@@ -488,28 +489,39 @@ async function populateRepo(
   const r = await fetch(url);
   if (!r.ok) {
     if (r.status === 404) {
-      // When tar URL returns 404, fetch available branches to provide helpful error
-      const { fetchGitHubBranches } = await import('./github-api.js');
-      const branchInfo = await fetchGitHubBranches(owner, repo, githubToken);
-      
-      if (branchInfo.error === 'REPO_NOT_FOUND') {
-        return new Response(JSON.stringify({
-          error: 'Repository not found',
-          message: `Repository ${owner}/${repo} does not exist or is private`,
-          suggestion: 'Please check that the repository exists and is public, or that you have access to it.'
-        }, null, 2), {
-          status: 404,
-          headers: { "content-type": "application/json" }
-        });
+      // When tar URL returns 404, try to fetch available branches to provide helpful error
+      let branches: string[] | undefined;
+
+      try {
+        const branchInfo = await fetchGitHubBranches(owner, repo, githubToken);
+
+        if (branchInfo.error === 'REPO_NOT_FOUND') {
+          return new Response(JSON.stringify({
+            error: 'Repository not found',
+            message: `Repository ${owner}/${repo} does not exist or is private`,
+            suggestion: 'Please check that the repository exists and is public, or that you have access to it.'
+          }, null, 2), {
+            status: 404,
+            headers: { "content-type": "application/json" }
+          });
+        }
+
+        // If we successfully got branches, use them
+        if (branchInfo.branches && branchInfo.branches.length > 0) {
+          branches = branchInfo.branches
+            .slice(0, 10)  // Show up to 10 branches
+            .map(b => b.name);
+        }
+      } catch (error) {
+        // If fetching branches fails (rate limit, network issue, etc.),
+        // we still want to return a branch not found error
+        console.error('Failed to fetch branches for suggestions:', error);
       }
-      
-      if (branchInfo.branches && branchInfo.branches.length > 0) {
-        const branches = branchInfo.branches
-          .slice(0, 10)  // Show up to 10 branches
-          .map(b => b.name);
-        
+
+      // Return branch not found error with or without branch suggestions
+      if (branches && branches.length > 0) {
         const fullMessage = `Branch '${branch}' does not exist in ${owner}/${repo}.\n\nAvailable branches:\n${branches.map(b => `  - ${b}`).join('\n')}`;
-        
+
         return new Response(JSON.stringify({
           error: 'Branch not found',
           message: fullMessage,
@@ -520,6 +532,7 @@ async function populateRepo(
           headers: { "content-type": "application/json" }
         });
       } else {
+        // No branches available (either none exist or we couldn't fetch them)
         return new Response(JSON.stringify({
           error: 'Branch not found',
           message: `Branch '${branch}' does not exist in ${owner}/${repo}.`,
@@ -530,7 +543,7 @@ async function populateRepo(
         });
       }
     }
-    
+
     return new Response(JSON.stringify({
       error: 'Request failed',
       message: `GitHub archive fetch failed (${r.status}) for ${owner}/${repo}/${branch}. URL: ${url}`
