@@ -52,7 +52,7 @@ Returns JSON array of all file paths.
 ### Get File Content
 
 ```
-GET https://gitchamber.com/repos/:owner/:repo/:branch/file/*filepath[?showLineNumbers=true&start=N&end=M]
+GET https://gitchamber.com/repos/:owner/:repo/:branch/files/*filepath[?showLineNumbers=true&start=N&end=M]
 ```
 
 Returns file content. Optional parameters:
@@ -72,7 +72,7 @@ Full-text search returning markdown-formatted results with file paths, snippets,
 ## Usage Examples
 
 - [https://gitchamber.com/repos/remorses/gitchamber/main/files](https://gitchamber.com/repos/remorses/gitchamber/main/files)
-- [https://gitchamber.com/repos/remorses/gitchamber/main/file/package.json?start=5&end=50&showLineNumbers=true](https://gitchamber.com/repos/remorses/gitchamber/main/file/package.json?start=5&end=50&showLineNumbers=true)
+- [https://gitchamber.com/repos/remorses/gitchamber/main/files/package.json?start=5&end=50&showLineNumbers=true](https://gitchamber.com/repos/remorses/gitchamber/main/files/package.json?start=5&end=50&showLineNumbers=true)
 - [https://gitchamber.com/repos/remorses/gitchamber/main/search/cloudflare](https://gitchamber.com/repos/remorses/gitchamber/main/search/cloudflare)
 
 ## Development
@@ -148,7 +148,7 @@ paths:
                 type: array
                 items:
                   type: string
-  /repos/{owner}/{repo}/{branch}/file/{filepath}:
+  /repos/{owner}/{repo}/{branch}/files/{filepath}:
     get:
       summary: Get file content
       parameters:

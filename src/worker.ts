@@ -4,7 +4,7 @@
 
 import { McpAgent } from "agents/mcp";
 
-import { parseTar } from "@xmorse/tar-parser";
+import { parseTar,  } from "@xmorse/tar-parser";
 import { DurableObject } from "cloudflare:workers";
 import { Spiceflow, } from "spiceflow";
 import { cors } from "spiceflow/cors";
@@ -338,7 +338,7 @@ export class RepoCache extends DurableObject {
       const lineNumber = findLineNumberInContent(content, cleanSnippet);
 
       // Create URL with glob parameter and without base domain
-      let url = `/repos/${params.owner}/${params.repo}/${params.branch}/file/${r.path}`;
+      let url = `/repos/${params.owner}/${params.repo}/${params.branch}/files/${r.path}`;
       const queryParams: string[] = [];
       if (lineNumber) {
         queryParams.push(`start=${lineNumber}`);
@@ -777,6 +777,18 @@ const app = new Spiceflow()
   .route({
     method: "GET",
     path: "/repos/:owner/:repo/:branch/file/*",
+    handler: ({ params, query }) => {
+      // Redirect /file/* to /files/*
+      const { owner, repo, branch, "*": filePath } = params;
+      // Rebuild query string
+      const search = new URLSearchParams(query as Record<string,string>).toString();
+      const location = `/repos/${owner}/${repo}/${branch}/files/${filePath}${search ? `?${search}` : ""}`;
+      return Response.redirect(location, 302);
+    },
+  })
+  .route({
+    method: "GET",
+    path: "/repos/:owner/:repo/:branch/files/*",
     handler: async ({ params, query, state, request }) => {
       const { owner, repo, branch, "*": filePath } = params;
       const showLineNumbers = query.showLineNumbers === "true";

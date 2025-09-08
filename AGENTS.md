@@ -20,13 +20,13 @@ BASE_URL: `https://gitchamber.com/repos/{owner}/{repo}/{branch}/`
 OPERATIONS:
 
 1. LIST FILES: GET {BASE_URL}/files
-2. READ FILE: GET {BASE_URL}/file/{filepath}?start=N&end=M&showLineNumbers=true
+2. READ FILE: GET {BASE_URL}/files/{filepath}?start=N&end=M&showLineNumbers=true
 3. SEARCH: GET {BASE_URL}/search/{query}
 
 EXAMPLES:
 
 - List files: https://gitchamber.com/repos/facebook/react/main/files
-- Read file: https://gitchamber.com/repos/facebook/react/main/file/README.md?start=10&end=50
+- Read file: https://gitchamber.com/repos/facebook/react/main/files/README.md?start=10&end=50
 - Search: https://gitchamber.com/repos/facebook/react/main/search/useState
 
 GUIDELINES:
@@ -79,12 +79,12 @@ If you notice a repo has an `examples/something/README.md` it is a good idea to 
 
 #### TypeScript files only (use same glob for all operations)
 https://gitchamber.com/repos/remorses/fumabase/main/files?glob=**/*.ts
-https://gitchamber.com/repos/remorses/fumabase/main/file/website/react-router.config.ts?glob=**/*.ts
+https://gitchamber.com/repos/remorses/fumabase/main/files/website/react-router.config.ts?glob=**/*.ts
 https://gitchamber.com/repos/remorses/fumabase/main/search/export?glob=**/*.ts
 
 #### JavaScript files in website directory only
 https://gitchamber.com/repos/remorses/fumabase/main/files?glob=website/**/*.js
-https://gitchamber.com/repos/remorses/fumabase/main/file/website/vite.config.js?glob=website/**/*.js
+https://gitchamber.com/repos/remorses/fumabase/main/files/website/vite.config.js?glob=website/**/*.js
 https://gitchamber.com/repos/remorses/fumabase/main/search/async?website=website/**/*.js
 
 #### All files (NOT RECOMMENDED - very slow)

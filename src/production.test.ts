@@ -38,7 +38,7 @@ describe(
     });
 
     it("should get file content without line numbers", async ({ expect }) => {
-      const response = await fetch(`${baseUrl}/file/CODE_OF_CONDUCT.md`);
+      const response = await fetch(`${baseUrl}/files/CODE_OF_CONDUCT.md`);
       const text = await response.text();
 
       expect(response.status).toBe(200);
@@ -105,7 +105,7 @@ describe(
 
     it("should get file content with line numbers", async ({ expect }) => {
       const response = await fetch(
-        `${baseUrl}/file/CODE_OF_CONDUCT.md?showLineNumbers=true`,
+        `${baseUrl}/files/CODE_OF_CONDUCT.md?showLineNumbers=true`,
       );
       const text = await response.text();
 
@@ -115,66 +115,66 @@ describe(
       );
       expect(text).toMatchInlineSnapshot(`
         " 1  ## Code of Conduct
-         2  
+         2
          3  ### Our Pledge
-         4  
+         4
          5  We as members, contributors, and leaders pledge to make participation in our community a harassment-free experience for everyone, regardless of age, body size, visible or invisible disability, ethnicity, sex characteristics, gender identity and expression, level of experience, education, socio-economic status, nationality, personal appearance, race, caste, color, religion, or sexual identity and orientation.
-         6  
+         6
          7  We pledge to act and interact in ways that contribute to an open, welcoming, diverse, inclusive, and healthy community.
-         8  
+         8
          9  ### Our Standards
-        10  
+        10
         11  Examples of behavior that contributes to a positive environment for our community include:
-        12  
+        12
         13  - Demonstrating empathy and kindness toward other people
         14  - Being respectful of differing opinions, viewpoints, and experiences
         15  - Giving and gracefully accepting constructive feedback
         16  - Accepting responsibility and apologizing to those affected by our mistakes, and learning from the experience
         17  - Focusing on what is best not just for us as individuals, but for the overall community
-        18  
+        18
         19  Examples of unacceptable behavior include:
-        20  
+        20
         21  - The use of sexualized language or imagery, and sexual attention or advances of any kind
         22  - Trolling, insulting or derogatory comments, and personal or political attacks
         23  - Public or private harassment
         24  - Publishing others’ private information, such as a physical or email address, without their explicit permission
         25  - Other conduct which could reasonably be considered inappropriate in a professional setting
-        26  
+        26
         27  ### Enforcement Responsibilities
-        28  
+        28
         29  Project maintainers are responsible for clarifying and enforcing our standards of acceptable behavior and will take appropriate and fair corrective action in response to any behavior that they deem inappropriate, threatening, offensive, or harmful.
-        30  
+        30
         31  Project maintainers have the right and responsibility to remove, edit, or reject comments, commits, code, wiki edits, issues, and other contributions that are not aligned to this Code of Conduct, and will communicate reasons for moderation decisions when appropriate.
-        32  
+        32
         33  ### Scope
-        34  
+        34
         35  This Code of Conduct applies within all community spaces, and also applies when an individual is officially representing the community in public spaces. Examples of representing our community include using an official e-mail address, posting via an official social media account, or acting as an appointed representative at an online or offline event.
-        36  
+        36
         37  ### Enforcement
-        38  
+        38
         39  Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the project team responsible for enforcement at [coc@vercel.com](mailto:coc@vercel.com). All complaints will be reviewed and investigated promptly and fairly.
-        40  
+        40
         41  All project maintainers are obligated to respect the privacy and security of the reporter of any incident.
-        42  
+        42
         43  Project maintainers who do not follow or enforce the Code of Conduct in good
         44  faith may face temporary or permanent repercussions as determined by other
         45  members of the project's leadership.
-        46  
+        46
         47  ### Attribution
-        48  
+        48
         49  This Code of Conduct is adapted from the [Contributor Covenant][homepage], version 2.1,
         50  available at [https://www.contributor-covenant.org/version/2/1/code_of_conduct/][version]
-        51  
+        51
         52  [homepage]: http://contributor-covenant.org
         53  [version]: https://www.contributor-covenant.org/version/2/1
-        54  
+        54
         end of file"
       `);
     });
 
     it("should get file content with start and end line numbers", async ({ expect }) => {
       const response = await fetch(
-        `${baseUrl}/file/CODE_OF_CONDUCT.md?start=6&end=12`,
+        `${baseUrl}/files/CODE_OF_CONDUCT.md?start=6&end=12`,
       );
       const text = await response.text();
 
@@ -183,59 +183,59 @@ describe(
         "text/plain; charset=utf-8",
       );
       expect(text).toMatchInlineSnapshot(`
-        " 6  
+        " 6
          7  We pledge to act and interact in ways that contribute to an open, welcoming, diverse, inclusive, and healthy community.
-         8  
+         8
          9  ### Our Standards
-        10  
+        10
         11  Examples of behavior that contributes to a positive environment for our community include:
-        12  
+        12
         [File truncated: 42 more lines]"
       `);
     });
 
     it("should get file content with only start line number", async ({ expect }) => {
       const response = await fetch(
-        `${baseUrl}/file/CODE_OF_CONDUCT.md?start=20`,
+        `${baseUrl}/files/CODE_OF_CONDUCT.md?start=20`,
       );
       const text = await response.text();
 
       expect(text).toMatchInlineSnapshot(`
-        "20  
+        "20
         21  - The use of sexualized language or imagery, and sexual attention or advances of any kind
         22  - Trolling, insulting or derogatory comments, and personal or political attacks
         23  - Public or private harassment
         24  - Publishing others’ private information, such as a physical or email address, without their explicit permission
         25  - Other conduct which could reasonably be considered inappropriate in a professional setting
-        26  
+        26
         27  ### Enforcement Responsibilities
-        28  
+        28
         29  Project maintainers are responsible for clarifying and enforcing our standards of acceptable behavior and will take appropriate and fair corrective action in response to any behavior that they deem inappropriate, threatening, offensive, or harmful.
-        30  
+        30
         31  Project maintainers have the right and responsibility to remove, edit, or reject comments, commits, code, wiki edits, issues, and other contributions that are not aligned to this Code of Conduct, and will communicate reasons for moderation decisions when appropriate.
-        32  
+        32
         33  ### Scope
-        34  
+        34
         35  This Code of Conduct applies within all community spaces, and also applies when an individual is officially representing the community in public spaces. Examples of representing our community include using an official e-mail address, posting via an official social media account, or acting as an appointed representative at an online or offline event.
-        36  
+        36
         37  ### Enforcement
-        38  
+        38
         39  Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the project team responsible for enforcement at [coc@vercel.com](mailto:coc@vercel.com). All complaints will be reviewed and investigated promptly and fairly.
-        40  
+        40
         41  All project maintainers are obligated to respect the privacy and security of the reporter of any incident.
-        42  
+        42
         43  Project maintainers who do not follow or enforce the Code of Conduct in good
         44  faith may face temporary or permanent repercussions as determined by other
         45  members of the project's leadership.
-        46  
+        46
         47  ### Attribution
-        48  
+        48
         49  This Code of Conduct is adapted from the [Contributor Covenant][homepage], version 2.1,
         50  available at [https://www.contributor-covenant.org/version/2/1/code_of_conduct/][version]
-        51  
+        51
         52  [homepage]: http://contributor-covenant.org
         53  [version]: https://www.contributor-covenant.org/version/2/1
-        54  
+        54
         end of file"
       `);
 
@@ -250,7 +250,7 @@ describe(
     });
 
     it("should handle 404 for non-existent file", async ({ expect }) => {
-      const response = await fetch(`${baseUrl}/file/nonexistent.txt`);
+      const response = await fetch(`${baseUrl}/files/nonexistent.txt`);
 
       expect(response.status).toBe(404);
     });
