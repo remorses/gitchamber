@@ -777,12 +777,24 @@ const app = new Spiceflow()
   .route({
     method: "GET",
     path: "/repos/:owner/:repo/:branch/file/*",
-    handler: ({ params, query }) => {
+    handler: ({ params, request }) => {
       // Redirect /file/* to /files/*
       const { owner, repo, branch, "*": filePath } = params;
-      // Rebuild query string
-      const search = new URLSearchParams(query as Record<string,string>).toString();
-      const location = `/repos/${owner}/${repo}/${branch}/files/${filePath}${search ? `?${search}` : ""}`;
+      const url = new URL(request.url);
+      const search = url.search;
+      const location = `/repos/${owner}/${repo}/${branch}/files/${filePath}${search}`;
+      return Response.redirect(location, 302);
+    },
+  })
+  .route({
+    method: "GET",
+    path: "/repos/:owner/:repo/:branch/glob",
+    handler: ({ params, request }) => {
+      // Redirect /file/* to /files/*
+      const { owner, repo, branch } = params;
+      const url = new URL(request.url);
+      const search = url.search;
+      const location = `/repos/${owner}/${repo}/${branch}/files${search}`;
       return Response.redirect(location, 302);
     },
   })
