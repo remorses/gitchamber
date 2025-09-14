@@ -49,6 +49,18 @@ interface GetClosestAvailableRegionArgs {
 
 /* ---------- Helper functions ------------------------- */
 
+// Check for unknown query parameters and generate warning message
+function checkUnknownQueryParams(query: Record<string, any>, validParams: string[]): string | null {
+  const queryKeys = Object.keys(query);
+  const unknownParams = queryKeys.filter(key => !validParams.includes(key));
+  
+  if (unknownParams.length > 0) {
+    return `\n\nNOTE: query param${unknownParams.length > 1 ? 's' : ''} ${unknownParams.join(', ')} do not exist, fetch https://gitchamber.com to see how to use this API correctly.`;
+  }
+  
+  return null;
+}
+
 // Determine the closest Durable Object region based on location
 function getClosestDurableObjectRegion(params: {
   continent?: string;
@@ -894,6 +906,18 @@ const app = new Spiceflow()
         throw error;
       }
     },
+  })
+  .route({
+    path: "*",
+    handler: () => {
+      return new Response(
+        "404 Not Found\n\nTo see how to use gitchamber ALWAYS do `curl -s https://gitchamber.com` first.",
+        { 
+          status: 404,
+          headers: { "content-type": "text/plain; charset=utf-8" }
+        }
+      );
+    }
   });
 
 // from example https://github.com/cloudflare/ai/blob/main/demos/remote-mcp-authless/src/index.ts
