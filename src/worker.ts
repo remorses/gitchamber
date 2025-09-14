@@ -53,11 +53,11 @@ interface GetClosestAvailableRegionArgs {
 function checkUnknownQueryParams(query: Record<string, any>, validParams: string[]): string | null {
   const queryKeys = Object.keys(query);
   const unknownParams = queryKeys.filter(key => !validParams.includes(key));
-  
+
   if (unknownParams.length > 0) {
     return `\n\nNOTE: query param${unknownParams.length > 1 ? 's' : ''} ${unknownParams.join(', ')} do not exist, fetch https://gitchamber.com to see how to use this API correctly.`;
   }
-  
+
   return null;
 }
 
@@ -908,11 +908,11 @@ const app = new Spiceflow()
     },
   })
   .route({
-    path: "*",
+    path: "/*",
     handler: () => {
       return new Response(
         "404 Not Found\n\nTo see how to use gitchamber ALWAYS do `curl -s https://gitchamber.com` first.",
-        { 
+        {
           status: 404,
           headers: { "content-type": "text/plain; charset=utf-8" }
         }
