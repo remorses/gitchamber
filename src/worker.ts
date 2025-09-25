@@ -785,7 +785,7 @@ const app = new Spiceflow()
 <body>
   <div class="container">
     <div class="github-link">
-      <a href="https://github.com/xmorse/gitchamber" target="_blank" rel="noopener noreferrer">View on GitHub</a>
+      <a href="https://github.com/remorses/gitchamber" target="_blank" rel="noopener noreferrer">View on GitHub</a>
     </div>
     ${htmlContent}
   </div>
