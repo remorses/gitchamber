@@ -5,25 +5,24 @@
       "name": "listRepoFiles",
       "description": "List all files in a GitHub repository",
       "inputSchema": {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "additionalProperties": false,
+        "type": "object",
         "properties": {
-          "branch": {
-            "description": "Branch name",
-            "type": "string"
-          },
-          "glob": {
-            "default": "**/{*.md,*.mdx,README*}",
-            "description": "File glob pattern",
-            "type": "string"
-          },
           "owner": {
-            "description": "Repository owner",
-            "type": "string"
+            "type": "string",
+            "description": "Repository owner"
           },
           "repo": {
-            "description": "Repository name",
-            "type": "string"
+            "type": "string",
+            "description": "Repository name"
+          },
+          "branch": {
+            "type": "string",
+            "description": "Branch name"
+          },
+          "glob": {
+            "type": "string",
+            "default": "**/{*.md,*.mdx,README*}",
+            "description": "File glob pattern"
           }
         },
         "required": [
@@ -31,49 +30,49 @@
           "repo",
           "branch"
         ],
-        "type": "object"
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
       }
     },
     {
       "name": "readRepoFile",
       "description": "Read the content of a specific file in a GitHub repository",
       "inputSchema": {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "additionalProperties": false,
+        "type": "object",
         "properties": {
-          "branch": {
-            "description": "Branch name",
-            "type": "string"
-          },
-          "end": {
-            "description": "End line number",
-            "type": "integer"
-          },
-          "filepath": {
-            "description": "Path to the file",
-            "type": "string"
-          },
-          "glob": {
-            "default": "**/{*.md,*.mdx,README*}",
-            "description": "File glob pattern",
-            "type": "string"
-          },
           "owner": {
-            "description": "Repository owner",
-            "type": "string"
+            "type": "string",
+            "description": "Repository owner"
           },
           "repo": {
-            "description": "Repository name",
-            "type": "string"
+            "type": "string",
+            "description": "Repository name"
           },
-          "showLineNumbers": {
-            "default": false,
-            "description": "Show line numbers",
-            "type": "boolean"
+          "branch": {
+            "type": "string",
+            "description": "Branch name"
+          },
+          "glob": {
+            "type": "string",
+            "default": "**/{*.md,*.mdx,README*}",
+            "description": "File glob pattern"
+          },
+          "filepath": {
+            "type": "string",
+            "description": "Path to the file"
           },
           "start": {
-            "description": "Start line number",
-            "type": "integer"
+            "type": "integer",
+            "description": "Start line number"
+          },
+          "end": {
+            "type": "integer",
+            "description": "End line number"
+          },
+          "showLineNumbers": {
+            "type": "boolean",
+            "default": false,
+            "description": "Show line numbers"
           }
         },
         "required": [
@@ -82,36 +81,36 @@
           "branch",
           "filepath"
         ],
-        "type": "object"
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
       }
     },
     {
       "name": "searchRepoContent",
       "description": "Search for content in a GitHub repository",
       "inputSchema": {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "additionalProperties": false,
+        "type": "object",
         "properties": {
-          "branch": {
-            "description": "Branch name",
-            "type": "string"
-          },
-          "glob": {
-            "default": "**/{*.md,*.mdx,README*}",
-            "description": "File glob pattern",
-            "type": "string"
-          },
           "owner": {
-            "description": "Repository owner",
-            "type": "string"
-          },
-          "query": {
-            "description": "Search query",
-            "type": "string"
+            "type": "string",
+            "description": "Repository owner"
           },
           "repo": {
-            "description": "Repository name",
-            "type": "string"
+            "type": "string",
+            "description": "Repository name"
+          },
+          "branch": {
+            "type": "string",
+            "description": "Branch name"
+          },
+          "glob": {
+            "type": "string",
+            "default": "**/{*.md,*.mdx,README*}",
+            "description": "File glob pattern"
+          },
+          "query": {
+            "type": "string",
+            "description": "Search query"
           }
         },
         "required": [
@@ -120,7 +119,8 @@
           "branch",
           "query"
         ],
-        "type": "object"
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
       }
     }
   ]

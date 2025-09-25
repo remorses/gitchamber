@@ -37,14 +37,6 @@ describe('GitChamber MCP Tools Schema Snapshots', () => {
       // Use file snapshot in snapshots folder
       await expect(JSON.stringify(toolSchemas, null, 2)).toMatchFileSnapshot('./snapshots/tools-schema.json')
 
-      // Also use regular vitest snapshots for comparison
-      expect(toolSchemas).toMatchSnapshot('all-tools-and-server-info')
-
-      // Snapshot individual tools
-      for (const tool of toolSchemas.tools) {
-        expect(tool).toMatchSnapshot(`tool-${tool.name}`)
-      }
-
     } finally {
       // Clean up - close the connection
       await client.close()
