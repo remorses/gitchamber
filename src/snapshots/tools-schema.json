@@ -1,0 +1,127 @@
+{
+  "serverInfo": {},
+  "tools": [
+    {
+      "name": "listRepoFiles",
+      "description": "List all files in a GitHub repository",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+          "branch": {
+            "description": "Branch name",
+            "type": "string"
+          },
+          "glob": {
+            "default": "**/{*.md,*.mdx,README*}",
+            "description": "File glob pattern",
+            "type": "string"
+          },
+          "owner": {
+            "description": "Repository owner",
+            "type": "string"
+          },
+          "repo": {
+            "description": "Repository name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "owner",
+          "repo",
+          "branch"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "readRepoFile",
+      "description": "Read the content of a specific file in a GitHub repository",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+          "branch": {
+            "description": "Branch name",
+            "type": "string"
+          },
+          "end": {
+            "description": "End line number",
+            "type": "integer"
+          },
+          "filepath": {
+            "description": "Path to the file",
+            "type": "string"
+          },
+          "glob": {
+            "default": "**/{*.md,*.mdx,README*}",
+            "description": "File glob pattern",
+            "type": "string"
+          },
+          "owner": {
+            "description": "Repository owner",
+            "type": "string"
+          },
+          "repo": {
+            "description": "Repository name",
+            "type": "string"
+          },
+          "showLineNumbers": {
+            "default": false,
+            "description": "Show line numbers",
+            "type": "boolean"
+          },
+          "start": {
+            "description": "Start line number",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "owner",
+          "repo",
+          "branch",
+          "filepath"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "searchRepoContent",
+      "description": "Search for content in a GitHub repository",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+          "branch": {
+            "description": "Branch name",
+            "type": "string"
+          },
+          "glob": {
+            "default": "**/{*.md,*.mdx,README*}",
+            "description": "File glob pattern",
+            "type": "string"
+          },
+          "owner": {
+            "description": "Repository owner",
+            "type": "string"
+          },
+          "query": {
+            "description": "Search query",
+            "type": "string"
+          },
+          "repo": {
+            "description": "Repository name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "owner",
+          "repo",
+          "branch",
+          "query"
+        ],
+        "type": "object"
+      }
+    }
+  ]
+}
