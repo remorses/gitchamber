@@ -732,6 +732,13 @@ const app = new Spiceflow()
       max-width: 900px;
       width: 100%;
     }
+    .github-link {
+      text-align: center;
+      margin-bottom: 20px;
+      padding: 10px;
+      background-color: #111;
+      border-radius: 4px;
+    }
     a {
       color: #4a9eff;
       text-decoration: none;
@@ -777,6 +784,9 @@ const app = new Spiceflow()
 </head>
 <body>
   <div class="container">
+    <div class="github-link">
+      <a href="https://github.com/xmorse/gitchamber" target="_blank" rel="noopener noreferrer">View on GitHub</a>
+    </div>
     ${htmlContent}
   </div>
 </body>
