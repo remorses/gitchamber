@@ -4,12 +4,12 @@
   "main": "src/worker.ts",
   "compatibility_date": "2025-07-20",
   "compatibility_flags": ["nodejs_compat"],
-  
+
   "rules": [
     {
       "type": "Text",
-      "globs": ["**/*.md"]
-    }
+      "globs": ["**/*.md"],
+    },
   ],
 
   "durable_objects": {
@@ -31,13 +31,33 @@
   ],
 
   "vars": {
-    "GITHUB_TOKEN": "", // optional – lifts rate limit to 5 000 req/h
+    "GITHUB_TOKEN": "", // optional – lifts rate limit to 5 000 req/h
   },
 
   "routes": [
     {
-      "pattern": "gitchamber.com",
+      "pattern": "preview.gitchamber.com",
       "custom_domain": true,
     },
   ],
+
+  // Environment configurations
+  "env": {
+    // Preview environment
+    "preview": {
+      "name": "repo-cache-worker-preview",
+      "durable_objects": {
+        "bindings": [
+          { "name": "REPO_CACHE", "class_name": "RepoCache" },
+          { "name": "MCP_OBJECT", "class_name": "MyMCP" },
+        ],
+      },
+      "routes": [
+        {
+          "pattern": "preview.gitchamber.com",
+          "custom_domain": true,
+        },
+      ],
+    },
+  },
 }

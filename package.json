@@ -4,7 +4,8 @@
   "description": "",
   "type": "module",
   "scripts": {
-    "deployment": "tsc && pnpm wrangler deploy",
+    "deployment": "tsc && pnpm wrangler deploy --env preview",
+    "deployment:prod": "tsc && pnpm wrangler deploy",
     "test": "vitest"
   },
   "keywords": [],
@@ -18,13 +19,15 @@
     "wrangler": "^4.24.3"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.18.0",
+    "@modelcontextprotocol/sdk": "^1.18.1",
     "@types/micromatch": "^4.0.9",
     "@xmorse/tar-parser": "^0.3.0",
-    "agents": "^0.1.3",
+    "agents": "^0.2.1",
     "marked": "^16.1.2",
     "micromatch": "^4.0.8",
     "spiceflow": "^1.17.2",
-    "zod": "^4.0.5"
+    "zod": "^3.25.76",
+    "zod-to-json-schema": "^3.24.6",
+    "zodown": "^0.2.1"
   }
 }
