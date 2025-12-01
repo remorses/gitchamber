@@ -232,7 +232,18 @@ export class RepoCache extends DurableObject {
     const rows = [
       ...this.sql.exec(`SELECT path FROM ${filesTable} ORDER BY path`),
     ]
-    return json(rows.map((r) => r.path))
+    const files = rows.map((r) => r.path)
+
+    // Add helpful note about using glob to list other file types
+    const isDefaultGlob = !params.glob || params.glob === DEFAULT_GLOB
+    if (isDefaultGlob) {
+      return json({
+        files,
+        note: 'By default, only markdown files are indexed. To list other file types, use a glob parameter like ?glob=**/* or ?glob=**/*.ts',
+      })
+    }
+
+    return json(files)
   }
 
   async getFile(params: {
@@ -262,6 +273,28 @@ export class RepoCache extends DurableObject {
     const row = results.length > 0 ? results[0] : null
 
     if (!row) {
+      // Check if this is a non-markdown file with the default glob
+      const isDefaultGlob = !params.glob || params.glob === DEFAULT_GLOB
+      const isMarkdownFile =
+        params.filePath.endsWith('.md') ||
+        params.filePath.endsWith('.mdx') ||
+        params.filePath.toUpperCase().startsWith('README')
+
+      if (isDefaultGlob && !isMarkdownFile) {
+        // Extract file extension for a more helpful suggestion
+        const extMatch = params.filePath.match(/\.([^.]+)$/)
+        const ext = extMatch ? extMatch[1] : null
+        const globExample = ext ? `?glob=**/*.${ext}` : '?glob=**/*'
+
+        return new Response(
+          `File not found: ${params.filePath}\n\nBy default, only markdown files are indexed. This file has a non-markdown extension. Repeat the request with a glob parameter to find this file, for example: ${globExample}`,
+          {
+            status: 404,
+            headers: { 'content-type': 'text/plain; charset=utf-8' },
+          },
+        )
+      }
+
       return notFound()
     }
 
