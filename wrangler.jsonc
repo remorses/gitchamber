@@ -46,6 +46,7 @@
     // Preview environment
     "preview": {
       "name": "repo-cache-worker-preview",
+      "workers_dev": true,
       "durable_objects": {
         "bindings": [
           { "name": "REPO_CACHE", "class_name": "RepoCache" },
