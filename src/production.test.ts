@@ -4,23 +4,26 @@ describe(
   "GitChamber Production API",
   () => {
     const baseUrl =
-      "https://preview.gitchamber.com/repos/vercel/next.js/canary";
+      "https://gitchamber.com/repos/vercel/next.js/canary";
 
     it("should list files", async ({ expect }) => {
       const response = await fetch(`${baseUrl}/files?force=true`);
       const data = (await response.json()) as any;
 
       expect(response.status).toBe(200);
-      expect(Array.isArray(data)).toBe(true);
-      expect(data.slice(0, 5)).toMatchInlineSnapshot(`
-      [
-        "CODE_OF_CONDUCT.md",
-        "UPGRADING.md",
-        "apps/docs/README.md",
-        "bench/fuzzponent/readme.md",
-        "bench/rendering/readme.md",
-      ]
-    `);
+      // With default glob, response is { files, note }
+      expect(data.files).toBeDefined();
+      expect(Array.isArray(data.files)).toBe(true);
+      expect(data.note).toContain("By default, only markdown files are indexed");
+      expect(data.files.slice(0, 5)).toMatchInlineSnapshot(`
+        [
+          "CODE_OF_CONDUCT.md",
+          "UPGRADING.md",
+          "apps/bundle-analyzer/README.md",
+          "apps/docs/README.md",
+          "bench/fuzzponent/readme.md",
+        ]
+      `);
     });
 
     it("should search repository", async ({ expect }) => {
@@ -278,7 +281,7 @@ describe(
       expect,
     }) => {
       const response = await fetch(
-        "https://preview.gitchamber.com/repos/vercel/next.js/non-existent-branch-999/files",
+        "https://gitchamber.com/repos/vercel/next.js/non-existent-branch-999/files",
       );
       const data = (await response.json()) as any;
 
@@ -319,7 +322,7 @@ describe(
       expect,
     }) => {
       const response = await fetch(
-        "https://preview.gitchamber.com/repos/vercel/this-repo-does-not-exist-12345/main/files",
+        "https://gitchamber.com/repos/vercel/this-repo-does-not-exist-12345/main/files",
       );
       const data = (await response.json()) as any;
 

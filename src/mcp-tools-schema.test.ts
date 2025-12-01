@@ -3,10 +3,10 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
 
 describe('GitChamber MCP Tools Schema Snapshots', () => {
-  it('should fetch and snapshot tool schemas from preview.gitchamber.com/mcp', async () => {
+  it('should fetch and snapshot tool schemas from gitchamber.com/mcp', async () => {
     // Create an SSE transport to connect to the MCP server
     // The SSE endpoint is at /sse as seen in the worker code
-    const transport = new SSEClientTransport(new URL('https://preview.gitchamber.com/sse'))
+    const transport = new SSEClientTransport(new URL('https://gitchamber.com/sse'))
     const client = new Client({
       name: 'gitchamber-test-client',
       version: '1.0.0'
