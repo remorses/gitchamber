@@ -4,7 +4,7 @@ describe(
   "GitChamber Production API",
   () => {
     const baseUrl =
-      "https://repo-cache-worker-preview.remorses.workers.dev/repos/vercel/next.js/canary";
+      "https://preview.gitchamber.com/repos/vercel/next.js/canary";
 
     it("should list files", async ({ expect }) => {
       const response = await fetch(`${baseUrl}/files?force=true`);
@@ -281,7 +281,7 @@ describe(
       expect,
     }) => {
       const response = await fetch(
-        "https://repo-cache-worker-preview.remorses.workers.dev/repos/vercel/next.js/non-existent-branch-999/files",
+        "https://preview.gitchamber.com/repos/vercel/next.js/non-existent-branch-999/files",
       );
       const data = (await response.json()) as any;
 
@@ -322,7 +322,7 @@ describe(
       expect,
     }) => {
       const response = await fetch(
-        "https://repo-cache-worker-preview.remorses.workers.dev/repos/vercel/this-repo-does-not-exist-12345/main/files",
+        "https://preview.gitchamber.com/repos/vercel/this-repo-does-not-exist-12345/main/files",
       );
       const data = (await response.json()) as any;
 
