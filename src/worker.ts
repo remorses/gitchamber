@@ -27,6 +27,7 @@ import { fetchGitHubBranches } from './github-api.js'
 const ENABLE_FTS = false // Set to true to enable full-text search indexing
 const DEFAULT_GLOB = '**/{*.md,*.mdx,README*}' // Default to markdown and README files only
 const MAX_FILE_LINES = 1000 // Maximum number of lines to return for a file
+const MAX_DATA_AGE_MS = 7 * 24 * 60 * 60 * 1000 // 7 days - delete data after this time
 
 /* ---------- Region support --------------------------- */
 
@@ -177,12 +178,78 @@ export class RepoCache extends DurableObject {
   constructor(state: DurableObjectState, env: Env) {
     super(state, env)
     this.sql = state.storage.sql
-    this.ttl = Number(env.CACHE_TTL_MS ?? 21_600_000) // 6 h default
+    this.ttl = Number(env.CACHE_TTL_MS ?? 21_600_000) // 6 h default
 
     // Create meta table for tracking different glob patterns
     this.sql.exec(`
       CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, val TEXT);
     `)
+  }
+
+  /**
+   * Ensures an alarm is set for this Durable Object.
+   * This fixes orphaned databases that were created before alarms were properly set.
+   * Should be called on every access to the DO.
+   */
+  private async ensureAlarmExists() {
+    const existingAlarm = await this.ctx.storage.getAlarm()
+    if (existingAlarm !== null) return // Alarm already set
+
+    // Check if we have any data
+    const tables = [
+      ...this.sql.exec(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'files_%'",
+      ),
+    ]
+
+    if (tables.length > 0) {
+      // Find the oldest createdAt or firstFetched to determine data age
+      let oldestTimestamp = Date.now()
+
+      // First check meta table for createdAt entries
+      const createdAtResults = [
+        ...this.sql.exec(
+          "SELECT val FROM meta WHERE key LIKE 'createdAt_%'",
+        ),
+      ]
+      for (const row of createdAtResults) {
+        const ts = Number(row.val)
+        if (ts > 0 && ts < oldestTimestamp) {
+          oldestTimestamp = ts
+        }
+      }
+
+      // If no createdAt found, fall back to firstFetched from file tables
+      if (createdAtResults.length === 0) {
+        for (const table of tables) {
+          try {
+            const result = [
+              ...this.sql.exec(
+                `SELECT MIN(firstFetched) as oldest FROM ${table.name}`,
+              ),
+            ]
+            if (result.length > 0 && result[0].oldest) {
+              const ts = Number(result[0].oldest)
+              if (ts > 0 && ts < oldestTimestamp) {
+                oldestTimestamp = ts
+              }
+            }
+          } catch {
+            // Table might not have expected schema, skip it
+          }
+        }
+      }
+
+      // Set alarm for 7 days from oldest data, or immediately if already expired
+      const alarmTime = oldestTimestamp + MAX_DATA_AGE_MS
+      const now = Date.now()
+      const finalAlarmTime = alarmTime < now ? now + 1000 : alarmTime
+
+      await this.ctx.storage.setAlarm(finalAlarmTime)
+      console.log(
+        `Set recovery alarm for orphaned data: ${new Date(finalAlarmTime)} (data age: ${Math.round((now - oldestTimestamp) / 1000 / 60 / 60)} hours)`,
+      )
+    }
   }
 
   private ensureTablesForGlob(glob?: string) {
@@ -225,6 +292,7 @@ export class RepoCache extends DurableObject {
     this.repo = params.repo
     this.branch = params.branch
 
+    await this.ensureAlarmExists()
     await this.ensureFresh(params.glob)
     this.ensureTablesForGlob(params.glob)
     const tableSuffix = globToTableSuffix(params.glob)
@@ -260,6 +328,7 @@ export class RepoCache extends DurableObject {
     this.repo = params.repo
     this.branch = params.branch
 
+    await this.ensureAlarmExists()
     await this.ensureFresh(params.glob)
     this.ensureTablesForGlob(params.glob)
     const tableSuffix = globToTableSuffix(params.glob)
@@ -325,6 +394,7 @@ export class RepoCache extends DurableObject {
     this.repo = params.repo
     this.branch = params.branch
 
+    await this.ensureAlarmExists()
     await this.ensureFresh(params.glob)
     this.ensureTablesForGlob(params.glob)
     const tableSuffix = globToTableSuffix(params.glob)
@@ -436,48 +506,20 @@ export class RepoCache extends DurableObject {
   }
 
   async alarm() {
-    console.log('Alarm triggered - checking if repo data should be deleted')
+    console.log('Alarm triggered - deleting all repo data (7-day limit reached)')
 
-    // Get all lastFetched entries from meta table
-    const results = [
+    // Delete all glob-specific tables
+    const tableResults = [
       ...this.sql.exec(
-        "SELECT key, val FROM meta WHERE key LIKE 'lastFetched_%'",
+        "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'files_%'",
       ),
     ]
-
-    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000
-    let anyActive = false
-
-    for (const meta of results) {
-      const lastFetched = Number(meta.val)
-      if (lastFetched >= oneDayAgo) {
-        anyActive = true
-        break
-      }
+    for (const table of tableResults) {
+      this.sql.exec(`DROP TABLE IF EXISTS ${table.name}`)
     }
+    this.sql.exec('DELETE FROM meta')
 
-    if (!anyActive) {
-      console.log('Deleting all repo data - not accessed in over 24 hours')
-      // Delete all glob-specific tables
-      const tableResults = [
-        ...this.sql.exec(
-          "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'files_%'",
-        ),
-      ]
-      for (const table of tableResults) {
-        this.sql.exec(`DROP TABLE IF EXISTS ${table.name}`)
-      }
-      this.sql.exec('DELETE FROM meta')
-
-      await this.ctx.storage.deleteAlarm()
-      console.log('All repo data deleted and alarm cleared')
-    } else {
-      const nextAlarmTime = Date.now() + 24 * 60 * 60 * 1000
-      await this.ctx.storage.setAlarm(nextAlarmTime)
-      console.log(
-        `Repo still active, rescheduled alarm for ${new Date(nextAlarmTime)}`,
-      )
-    }
+    console.log(`Deleted ${tableResults.length} tables and cleared meta`)
   }
 
   async storeFiles(
@@ -489,12 +531,25 @@ export class RepoCache extends DurableObject {
     const tableSuffix = globToTableSuffix(glob)
     const filesTable = `files_${tableSuffix}`
     const ftsTable = `files_fts_${tableSuffix}`
+    const createdAtKey = `createdAt_${tableSuffix}`
 
     /* freshen: clear existing rows to avoid orphans on first batch only */
     if (isFirstBatch) {
       this.sql.exec(`DELETE FROM ${filesTable}`)
       if (ENABLE_FTS) {
         this.sql.exec(`DELETE FROM ${ftsTable}`)
+      }
+
+      // Set createdAt only if not already set (preserves original creation time)
+      const existingCreatedAt = [
+        ...this.sql.exec('SELECT val FROM meta WHERE key = ?', createdAtKey),
+      ]
+      if (existingCreatedAt.length === 0) {
+        this.sql.exec(
+          'INSERT INTO meta VALUES (?,?)',
+          createdAtKey,
+          Date.now(),
+        )
       }
     }
 
@@ -529,13 +584,29 @@ export class RepoCache extends DurableObject {
   }
 
   async finalizeBatch(glob?: string) {
-    const metaKey = `lastFetched_${globToTableSuffix(glob)}`
+    const tableSuffix = globToTableSuffix(glob)
+    const metaKey = `lastFetched_${tableSuffix}`
+    const createdAtKey = `createdAt_${tableSuffix}`
     const now = Date.now()
+
     this.sql.exec('INSERT OR REPLACE INTO meta VALUES (?,?)', metaKey, now)
 
-    const alarmTime = now + 24 * 60 * 60 * 1000
-    await this.ctx.storage.setAlarm(alarmTime)
-    console.log(`Set cleanup alarm for ${new Date(alarmTime)}`)
+    // Get createdAt to calculate when data should be deleted
+    const createdAtResult = [
+      ...this.sql.exec('SELECT val FROM meta WHERE key = ?', createdAtKey),
+    ]
+    const createdAt =
+      createdAtResult.length > 0 ? Number(createdAtResult[0].val) : now
+
+    // Set alarm for 7 days from creation
+    const alarmTime = createdAt + MAX_DATA_AGE_MS
+    // If already past 7 days, set alarm for immediate cleanup
+    const finalAlarmTime = alarmTime < now ? now + 1000 : alarmTime
+
+    await this.ctx.storage.setAlarm(finalAlarmTime)
+    console.log(
+      `Set cleanup alarm for ${new Date(finalAlarmTime)} (data created: ${new Date(createdAt)})`,
+    )
 
     return json({ success: true })
   }
