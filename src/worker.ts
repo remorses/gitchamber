@@ -484,7 +484,14 @@ export class RepoCache extends DurableObject {
     })
 
     const markdown = formatSearchResultsAsMarkdown(results)
-    return new Response(markdown, {
+    
+    // Add helpful note about default glob limitation
+    const isDefaultGlob = !params.glob || params.glob === DEFAULT_GLOB
+    const noteText = isDefaultGlob
+      ? '\n\nNote: By default, only markdown files (.md, .mdx) are searched. To search other file types, use a glob parameter like ?glob=**/* or ?glob=**/*.ts'
+      : ''
+    
+    return new Response(markdown + noteText, {
       headers: { 'content-type': 'text/markdown; charset=utf-8' },
     })
   }
