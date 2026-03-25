@@ -32,7 +32,7 @@ gitchamber facebook/react#main
 gitchamber https://github.com/denoland/deno
 ```
 
-Source code ends up in `node_modules/.gitchamber/repos/<host>/<owner>/<repo>/`.
+Source code ends up in `node_modules/.gitchamber/<host>/<owner>/<repo>/`.
 
 ## Commands
 

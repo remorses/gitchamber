@@ -1,6 +1,6 @@
 {
   "name": "gitchamber",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Fetch source code for packages to give coding agents deeper context",
   "type": "module",
   "bin": "dist/cli.js",

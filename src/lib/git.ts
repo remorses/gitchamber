@@ -1,5 +1,5 @@
 import { simpleGit, type SimpleGit } from "simple-git";
-import { rm, mkdir, readFile } from "fs/promises";
+import { rm, mkdir, readFile, readdir } from "fs/promises";
 import { join } from "path";
 import { existsSync } from "fs";
 import type {
@@ -10,15 +10,10 @@ import type {
 } from "../types.ts";
 
 const BASE_DIR = "node_modules/.gitchamber";
-const REPOS_DIR = "repos";
 const SOURCES_FILE = "sources.json";
 
 export function getBaseDir(cwd: string = process.cwd()): string {
   return join(cwd, BASE_DIR);
-}
-
-export function getReposDir(cwd: string = process.cwd()): string {
-  return join(getBaseDir(cwd), REPOS_DIR);
 }
 
 /**
@@ -48,15 +43,22 @@ export function parseRepoUrl(
   return null;
 }
 
+/**
+ * Get the absolute path where a repo will be stored
+ */
 export function getRepoPath(
   displayName: string,
   cwd: string = process.cwd(),
 ): string {
-  return join(getReposDir(cwd), displayName);
+  return join(getBaseDir(cwd), displayName);
 }
 
+/**
+ * Get the path relative to the base dir (for sources.json)
+ * e.g. "github.com/colinhacks/zod"
+ */
 export function getRepoRelativePath(displayName: string): string {
-  return `${REPOS_DIR}/${displayName}`;
+  return displayName;
 }
 
 export function getRepoDisplayName(repoUrl: string): string | null {
@@ -235,11 +237,6 @@ export async function fetchSource(
   }
 
   const repoPath = getRepoPath(repoDisplayName, cwd);
-  const reposDir = getReposDir(cwd);
-
-  if (!existsSync(reposDir)) {
-    await mkdir(reposDir, { recursive: true });
-  }
 
   if (existsSync(repoPath)) {
     await rm(repoPath, { recursive: true, force: true });
@@ -298,11 +295,6 @@ export async function fetchRepoSource(
 ): Promise<FetchResult> {
   const git = simpleGit();
   const repoPath = getRepoPath(resolved.displayName, cwd);
-  const reposDir = getReposDir(cwd);
-
-  if (!existsSync(reposDir)) {
-    await mkdir(reposDir, { recursive: true });
-  }
 
   if (existsSync(repoPath)) {
     await rm(repoPath, { recursive: true, force: true });
@@ -344,12 +336,26 @@ export async function fetchRepoSource(
   };
 }
 
-function extractRepoPath(fullPath: string): string {
-  const parts = fullPath.split("/");
-  if (parts.length >= 4 && parts[0] === "repos") {
-    return parts.slice(0, 4).join("/");
+/**
+ * Strip legacy "repos/" prefix from stored paths for backward compatibility.
+ * Old versions stored paths like "repos/github.com/owner/repo", new format is "github.com/owner/repo".
+ */
+function normalizeStoredPath(path: string): string {
+  return path.startsWith("repos/") ? path.slice("repos/".length) : path;
+}
+
+/**
+ * Extract the host/owner/repo root from a path that may include monorepo subdirectories.
+ * e.g. "github.com/vercel/ai/packages/core" -> "github.com/vercel/ai"
+ * Also handles legacy "repos/github.com/vercel/ai" -> "github.com/vercel/ai"
+ */
+function extractRepoRoot(fullPath: string): string {
+  const normalized = normalizeStoredPath(fullPath);
+  const parts = normalized.split("/");
+  if (parts.length >= 3) {
+    return parts.slice(0, 3).join("/");
   }
-  return fullPath;
+  return normalized;
 }
 
 export async function removePackageSource(
@@ -365,22 +371,22 @@ export async function removePackageSource(
   );
   if (!pkg) return { removed: false, repoRemoved: false };
 
-  const pkgRepoPath = extractRepoPath(pkg.path);
+  const pkgRepoRoot = extractRepoRoot(pkg.path);
 
   const otherPackagesUsingSameRepo = sources.packages.filter(
     (p) =>
-      extractRepoPath(p.path) === pkgRepoPath &&
+      extractRepoRoot(p.path) === pkgRepoRoot &&
       !(p.name === packageName && p.registry === registry),
   );
 
   let repoRemoved = false;
 
   if (otherPackagesUsingSameRepo.length === 0) {
-    const repoPath = join(getBaseDir(cwd), pkgRepoPath);
+    const repoPath = join(getBaseDir(cwd), pkgRepoRoot);
     if (existsSync(repoPath)) {
       await rm(repoPath, { recursive: true, force: true });
       repoRemoved = true;
-      await cleanupEmptyParentDirs(pkgRepoPath, cwd);
+      await cleanupEmptyParentDirs(pkgRepoRoot, cwd);
     }
   }
 
@@ -396,22 +402,26 @@ export async function removeRepoSource(
   if (!existsSync(repoPath)) return false;
 
   await rm(repoPath, { recursive: true, force: true });
-  await cleanupEmptyParentDirs(getRepoRelativePath(displayName), cwd);
+  await cleanupEmptyParentDirs(displayName, cwd);
 
   return true;
 }
 
+/**
+ * Clean up empty parent dirs after removing a repo.
+ * Path is host/owner/repo (3 parts). Try cleaning owner dir, then host dir.
+ */
 async function cleanupEmptyParentDirs(
   relativePath: string,
   cwd: string,
 ): Promise<void> {
   const parts = relativePath.split("/");
-  if (parts.length < 4) return;
+  if (parts.length < 3) return;
 
-  const { readdir } = await import("fs/promises");
   const baseDir = getBaseDir(cwd);
 
-  const ownerDir = join(baseDir, parts[0]!, parts[1]!, parts[2]!);
+  // Try to clean up owner directory (host/owner)
+  const ownerDir = join(baseDir, parts[0]!, parts[1]!);
   try {
     const ownerContents = await readdir(ownerDir);
     if (ownerContents.length === 0) {
@@ -419,7 +429,8 @@ async function cleanupEmptyParentDirs(
     }
   } catch {}
 
-  const hostDir = join(baseDir, parts[0]!, parts[1]!);
+  // Try to clean up host directory (host)
+  const hostDir = join(baseDir, parts[0]!);
   try {
     const hostContents = await readdir(hostDir);
     if (hostContents.length === 0) {

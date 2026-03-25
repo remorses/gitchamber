@@ -1,6 +1,6 @@
 import { rm } from "fs/promises";
 import { existsSync } from "fs";
-import { getReposDir, listSources } from "../lib/git.ts";
+import { getBaseDir, listSources } from "../lib/git.ts";
 import {
   updateSourcesJson,
   type PackageEntry,
@@ -53,35 +53,41 @@ export async function cleanCommand(options: CleanOptions = {}): Promise<void> {
     reposRemoved = reposToRemove.length;
   }
 
-  const extractRepoPath = (fullPath: string): string => {
-    const parts = fullPath.split("/");
-    if (parts.length >= 4 && parts[0] === "repos") {
-      return parts.slice(0, 4).join("/");
+  // Strip legacy "repos/" prefix and extract host/owner/repo root
+  const extractRepoRoot = (fullPath: string): string => {
+    const normalized = fullPath.startsWith("repos/")
+      ? fullPath.slice("repos/".length)
+      : fullPath;
+    const parts = normalized.split("/");
+    if (parts.length >= 3) {
+      return parts.slice(0, 3).join("/");
     }
-    return fullPath;
+    return normalized;
   };
 
   const packageRepoPaths = new Set(
-    packagesToRemove.map((p) => extractRepoPath(p.path)),
+    packagesToRemove.map((p) => extractRepoRoot(p.path)),
   );
   const repoRepoPaths = new Set(reposToRemove.map((r) => r.path));
-  const neededRepoPaths = new Set(
-    remainingPackages.map((p) => extractRepoPath(p.path)),
-  );
+  const neededRepoPaths = new Set([
+    ...remainingPackages.map((p) => extractRepoRoot(p.path)),
+    ...remainingRepos.map((r) => extractRepoRoot(r.path)),
+  ]);
   const allRepoPaths = new Set([...packageRepoPaths, ...repoRepoPaths]);
 
+  const baseDir = getBaseDir(cwd);
   for (const repoPath of allRepoPaths) {
     if (!neededRepoPaths.has(repoPath)) {
-      const fullPath = `${cwd}/node_modules/.gitchamber/${repoPath}`;
+      const fullPath = `${baseDir}/${repoPath}`;
       if (existsSync(fullPath)) {
         await rm(fullPath, { recursive: true, force: true });
       }
     }
   }
 
-  const reposDir = getReposDir(cwd);
-  if (existsSync(reposDir)) {
-    await cleanupEmptyDirs(reposDir);
+  // Clean up empty host/owner directories
+  if (existsSync(baseDir)) {
+    await cleanupEmptyDirs(baseDir);
   }
 
   if (cleanPackages) {

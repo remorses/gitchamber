@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.1
+
+1. **Flatter directory structure** — source code is now stored at `node_modules/.gitchamber/<host>/<owner>/<repo>/` instead of the previous `node_modules/.gitchamber/repos/<host>/<owner>/<repo>/`
+
+2. **Backward-compatible cleanup** — `remove` and `clean` correctly handle sources fetched with older versions that used the `repos/` prefix
+
 ## 0.1.0
 
 1. **Initial release** — fetch source code for npm, PyPI, and crates.io packages into `node_modules/.gitchamber/` for agent context:
