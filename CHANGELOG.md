@@ -1,14 +1,24 @@
 # Changelog
 
-## 2024-12-14
+## 0.1.0
 
-### Changed
+1. **Initial release** — fetch source code for npm, PyPI, and crates.io packages into `node_modules/.gitchamber/` for agent context:
 
-- SQLite cache data now expires after 7 days (previously 24 hours of inactivity)
-- Simplified alarm logic: data is deleted unconditionally when alarm fires (no activity check)
+   ```bash
+   gitchamber zod
+   gitchamber pypi:requests
+   gitchamber crates:serde
+   gitchamber vercel/ai
+   ```
 
-### Fixed
+2. **Automatic version detection** — for npm packages, detects the installed version from `node_modules`, `pnpm-lock.yaml`, `package-lock.json`, `yarn.lock`, or `package.json` so fetched source matches what's actually installed
 
-- Orphaned databases that never had alarms set are now cleaned up on next access
-- Added `ensureAlarmExists()` that runs on every request to detect and fix missing alarms
-- Uses oldest `createdAt` or `firstFetched` timestamp to calculate proper expiration
+3. **Multi-registry support** — `npm:` (default), `pypi:`, `pip:`, `crates:`, `cargo:`, `rust:` prefixes
+
+4. **GitHub and GitLab repos** — fetch any public repo by `owner/repo`, URL, or with a specific ref (`owner/repo#branch`, `owner/repo@tag`)
+
+5. **Monorepo-aware** — reads `repository.directory` from npm package metadata to point directly at the package subdirectory
+
+6. **`list`, `remove`, `clean` commands** — manage fetched sources tracked in `node_modules/.gitchamber/sources.json`
+
+7. **Zero configuration** — stores everything in `node_modules/.gitchamber/` so git, vitest, tsc, and all other tools ignore it automatically without any `.gitignore` or `tsconfig.json` changes
