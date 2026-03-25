@@ -8,19 +8,22 @@ importers:
 
   .:
     dependencies:
-      commander:
-        specifier: ^13.1.0
-        version: 13.1.0
+      goke:
+        specifier: ^6.3.0
+        version: 6.3.0
       simple-git:
         specifier: ^3.27.0
         version: 3.33.0
+      zod:
+        specifier: ^4.0.0
+        version: 4.3.6
     devDependencies:
       '@cloudflare/workers-types':
         specifier: ^4.20250712.0
         version: 4.20260317.1
       '@modelcontextprotocol/sdk':
         specifier: ^1.18.1
-        version: 1.27.1(@cfworker/json-schema@4.1.1)(zod@3.25.76)
+        version: 1.27.1(@cfworker/json-schema@4.1.1)(zod@4.3.6)
       '@types/micromatch':
         specifier: ^4.0.9
         version: 4.0.10
@@ -32,7 +35,7 @@ importers:
         version: 0.3.0
       agents:
         specifier: ^0.2.1
-        version: 0.2.35(@cloudflare/workers-types@4.20260317.1)(react@19.2.4)(typescript@5.9.2)(zod@3.25.76)
+        version: 0.2.35(@cloudflare/workers-types@4.20260317.1)(react@19.2.4)(typescript@5.9.2)(zod@4.3.6)
       marked:
         specifier: ^16.1.2
         version: 16.4.2
@@ -41,7 +44,7 @@ importers:
         version: 4.0.8
       spiceflow:
         specifier: ^1.17.2
-        version: 1.18.0(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@3.25.76))
+        version: 1.18.0(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.3.6))
       tsx:
         specifier: ^4.19.0
         version: 4.21.0
@@ -57,12 +60,9 @@ importers:
       wrangler:
         specifier: ^4.24.3
         version: 4.77.0(@cloudflare/workers-types@4.20260317.1)
-      zod:
-        specifier: ^3.25.76
-        version: 3.25.76
       zod-to-json-schema:
         specifier: ^3.24.6
-        version: 3.25.1(zod@3.25.76)
+        version: 3.25.1(zod@4.3.6)
       zodown:
         specifier: ^0.2.1
         version: 0.2.1
@@ -1159,6 +1159,10 @@ packages:
   get-tsconfig@4.13.7:
     resolution: {integrity: sha512-7tN6rFgBlMgpBML5j8typ92BKFi2sFQvIdpAqLA2beia5avZDrMs0FLZiM5etShWq5irVyGcGMEA1jcDaK7A/Q==}
 
+  goke@6.3.0:
+    resolution: {integrity: sha512-U9vmFbQdHpfUAO9nzLn7Kaxbz7u5X5d5bgme0P7dCw8Eb7MozpFvsaUgcoD2JNx0anaQUZRs0Hb1omZUOCAM7A==}
+    engines: {node: '>=18'}
+
   gopd@1.2.0:
     resolution: {integrity: sha512-ZUKRh6/kUFoAiTAtTYPZJ3hw9wNxx+BIBOijnlG9PnrJsCcSjs1wyyD6vJpaYtgnzDrKYRSqf3OO6Rfa93xsRg==}
     engines: {node: '>= 0.4'}
@@ -1741,9 +1745,6 @@ packages:
       typescript: ^5.0.0
       zod: ^3.25.0 || ^4.0.0
 
-  zod@3.25.76:
-    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
-
   zod@4.3.6:
     resolution: {integrity: sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg==}
 
@@ -2080,7 +2081,7 @@ snapshots:
     dependencies:
       object-treeify: 1.1.33
 
-  '@modelcontextprotocol/sdk@1.23.0(@cfworker/json-schema@4.1.1)(zod@3.25.76)':
+  '@modelcontextprotocol/sdk@1.23.0(@cfworker/json-schema@4.1.1)(zod@4.3.6)':
     dependencies:
       ajv: 8.18.0
       ajv-formats: 3.0.1(ajv@8.18.0)
@@ -2093,14 +2094,14 @@ snapshots:
       express-rate-limit: 7.5.1(express@5.2.1)
       pkce-challenge: 5.0.1
       raw-body: 3.0.2
-      zod: 3.25.76
-      zod-to-json-schema: 3.25.1(zod@3.25.76)
+      zod: 4.3.6
+      zod-to-json-schema: 3.25.1(zod@4.3.6)
     optionalDependencies:
       '@cfworker/json-schema': 4.1.1
     transitivePeerDependencies:
       - supports-color
 
-  '@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@3.25.76)':
+  '@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.3.6)':
     dependencies:
       '@hono/node-server': 1.19.11(hono@4.12.9)
       ajv: 8.18.0
@@ -2117,8 +2118,8 @@ snapshots:
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
       raw-body: 3.0.2
-      zod: 3.25.76
-      zod-to-json-schema: 3.25.1(zod@3.25.76)
+      zod: 4.3.6
+      zod-to-json-schema: 3.25.1(zod@4.3.6)
     optionalDependencies:
       '@cfworker/json-schema': 4.1.1
     transitivePeerDependencies:
@@ -2289,10 +2290,10 @@ snapshots:
       mime-types: 3.0.2
       negotiator: 1.0.0
 
-  agents@0.2.35(@cloudflare/workers-types@4.20260317.1)(react@19.2.4)(typescript@5.9.2)(zod@3.25.76):
+  agents@0.2.35(@cloudflare/workers-types@4.20260317.1)(react@19.2.4)(typescript@5.9.2)(zod@4.3.6):
     dependencies:
       '@cfworker/json-schema': 4.1.1
-      '@modelcontextprotocol/sdk': 1.23.0(@cfworker/json-schema@4.1.1)(zod@3.25.76)
+      '@modelcontextprotocol/sdk': 1.23.0(@cfworker/json-schema@4.1.1)(zod@4.3.6)
       cron-schedule: 6.0.0
       json-schema: 0.4.0
       json-schema-to-typescript: 15.0.4
@@ -2302,8 +2303,8 @@ snapshots:
       partysocket: 1.1.10
       react: 19.2.4
       yargs: 18.0.0
-      zod: 3.25.76
-      zod-to-ts: 2.0.0(typescript@5.9.2)(zod@3.25.76)
+      zod: 4.3.6
+      zod-to-ts: 2.0.0(typescript@5.9.2)(zod@4.3.6)
     transitivePeerDependencies:
       - '@cloudflare/workers-types'
       - supports-color
@@ -2624,6 +2625,10 @@ snapshots:
   get-tsconfig@4.13.7:
     dependencies:
       resolve-pkg-maps: 1.0.0
+
+  goke@6.3.0:
+    dependencies:
+      picocolors: 1.1.1
 
   gopd@1.2.0: {}
 
@@ -2987,7 +2992,7 @@ snapshots:
 
   source-map-js@1.2.1: {}
 
-  spiceflow@1.18.0(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@3.25.76)):
+  spiceflow@1.18.0(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.3.6)):
     dependencies:
       '@medley/router': 0.2.1
       '@standard-schema/spec': 1.1.0
@@ -2998,7 +3003,7 @@ snapshots:
       zod: 4.3.6
       zod-to-json-schema: 3.25.1(zod@4.3.6)
     optionalDependencies:
-      '@modelcontextprotocol/sdk': 1.27.1(@cfworker/json-schema@4.1.1)(zod@3.25.76)
+      '@modelcontextprotocol/sdk': 1.27.1(@cfworker/json-schema@4.1.1)(zod@4.3.6)
 
   stackback@0.0.2: {}
 
@@ -3222,20 +3227,14 @@ snapshots:
       cookie: 1.1.1
       youch-core: 0.3.3
 
-  zod-to-json-schema@3.25.1(zod@3.25.76):
-    dependencies:
-      zod: 3.25.76
-
   zod-to-json-schema@3.25.1(zod@4.3.6):
     dependencies:
       zod: 4.3.6
 
-  zod-to-ts@2.0.0(typescript@5.9.2)(zod@3.25.76):
+  zod-to-ts@2.0.0(typescript@5.9.2)(zod@4.3.6):
     dependencies:
       typescript: 5.9.2
-      zod: 3.25.76
-
-  zod@3.25.76: {}
+      zod: 4.3.6
 
   zod@4.3.6: {}
 
