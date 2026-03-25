@@ -1,5 +1,6 @@
-.DS_Store
 node_modules
 dist
 *.tsbuildinfo
-.wrangler
+.DS_Store
+tmp
+opensrc
