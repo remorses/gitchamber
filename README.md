@@ -66,7 +66,7 @@ For npm packages, gitchamber detects the installed version from `node_modules`, 
 
 ## Why `node_modules/.gitchamber/`
 
-This is a fork of [opensrc](https://github.com/vercel-labs/opensrc) that stores source code in `node_modules/.gitchamber/` instead of `opensrc/`.
+Fork of [opensrc](https://github.com/vercel-labs/opensrc) that stores source code in `node_modules/.gitchamber/` instead of `opensrc/`.
 
 Storing inside `node_modules/` is better because:
 
