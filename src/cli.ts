@@ -11,9 +11,7 @@ import type { Registry } from "./types.ts";
 
 const cli = goke("gitchamber");
 
-cli
-  .option("--cwd <path>", z.string().describe("Working directory"))
-  .option("--modify", "Allow modifying .gitignore and tsconfig.json");
+cli.option("--cwd <path>", z.string().describe("Working directory"));
 
 cli
   .command("[...packages]", "Fetch source code for packages to give coding agents deeper context")
@@ -31,29 +29,21 @@ cli
       return;
     }
 
-    await fetchCommand(packages, {
-      cwd: options.cwd,
-      allowModifications: options.modify,
-    });
+    await fetchCommand(packages, { cwd: options.cwd });
   });
 
 cli
   .command("list", "List all fetched package sources")
   .option("--json", "Output as JSON")
   .action(async (options) => {
-    await listCommand({
-      json: options.json,
-      cwd: options.cwd,
-    });
+    await listCommand({ json: options.json, cwd: options.cwd });
   });
 
 cli
   .command("remove <...packages>", "Remove fetched source code for packages or repos")
   .alias("rm")
   .action(async (packages, options) => {
-    await removeCommand(packages, {
-      cwd: options.cwd,
-    });
+    await removeCommand(packages, { cwd: options.cwd });
   });
 
 cli

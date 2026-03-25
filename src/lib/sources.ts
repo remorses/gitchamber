@@ -3,7 +3,7 @@ import { join } from "path";
 import { existsSync } from "fs";
 import type { Registry } from "../types.ts";
 
-const OPENSRC_DIR = "opensrc";
+const BASE_DIR = "node_modules/.gitchamber";
 const SOURCES_FILE = "sources.json";
 
 export interface PackageEntry {
@@ -28,7 +28,7 @@ export interface SourcesIndex {
 }
 
 /**
- * Update the sources.json file in opensrc/
+ * Update the sources.json file in node_modules/.gitchamber/
  */
 export async function updateSourcesJson(
   sources: {
@@ -37,8 +37,8 @@ export async function updateSourcesJson(
   },
   cwd: string = process.cwd(),
 ): Promise<void> {
-  const opensrcDir = join(cwd, OPENSRC_DIR);
-  const sourcesPath = join(opensrcDir, SOURCES_FILE);
+  const baseDir = join(cwd, BASE_DIR);
+  const sourcesPath = join(baseDir, SOURCES_FILE);
 
   if (sources.packages.length === 0 && sources.repos.length === 0) {
     if (existsSync(sourcesPath)) {

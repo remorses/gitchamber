@@ -18,58 +18,11 @@ import {
   type PackageEntry,
   type RepoEntry,
 } from "../lib/git.ts";
-import { ensureGitignore } from "../lib/gitignore.ts";
-import { ensureTsconfigExclude } from "../lib/tsconfig-exclude.ts";
 import { updateSourcesJson } from "../lib/sources.ts";
-import {
-  getFileModificationPermission,
-  setFileModificationPermission,
-} from "../lib/settings.ts";
-import { confirm } from "../lib/prompt.ts";
 import type { FetchResult, Registry } from "../types.ts";
 
 export interface FetchOptions {
   cwd?: string;
-  /** Override file modification permission: true = allow, false = deny, undefined = prompt */
-  allowModifications?: boolean;
-}
-
-async function checkFileModificationPermission(
-  cwd: string,
-  cliOverride?: boolean,
-): Promise<boolean> {
-  if (cliOverride !== undefined) {
-    await setFileModificationPermission(cliOverride, cwd);
-    if (cliOverride) {
-      console.log("✓ File modifications enabled (--modify)");
-    } else {
-      console.log("✗ File modifications disabled (--modify=false)");
-    }
-    return cliOverride;
-  }
-
-  const storedPermission = await getFileModificationPermission(cwd);
-  if (storedPermission !== undefined) {
-    return storedPermission;
-  }
-
-  console.log(
-    "\ngitchamber can update the following files for better integration:",
-  );
-  console.log("  • .gitignore - add opensrc/ to ignore list");
-  console.log("  • tsconfig.json - exclude opensrc/ from compilation\n");
-
-  const allowed = await confirm("Allow gitchamber to modify these files?");
-
-  await setFileModificationPermission(allowed, cwd);
-
-  if (allowed) {
-    console.log("✓ Permission granted - saved to opensrc/settings.json\n");
-  } else {
-    console.log("✗ Permission denied - saved to opensrc/settings.json\n");
-  }
-
-  return allowed;
 }
 
 function getRegistryLabel(registry: Registry): string {
@@ -131,7 +84,7 @@ async function fetchRepoInput(
     const result = await fetchRepoSource(resolved, cwd);
 
     if (result.success) {
-      console.log(`  ✓ Saved to opensrc/${result.path}`);
+      console.log(`  ✓ Saved to node_modules/.gitchamber/${result.path}`);
       if (result.error) {
         console.log(`  ⚠ ${result.error}`);
       }
@@ -212,7 +165,7 @@ async function fetchPackageInput(
     const result = await fetchSource(resolved, cwd);
 
     if (result.success) {
-      console.log(`  ✓ Saved to opensrc/${result.path}`);
+      console.log(`  ✓ Saved to node_modules/.gitchamber/${result.path}`);
       if (result.error) {
         console.log(`  ⚠ ${result.error}`);
       }
@@ -291,23 +244,6 @@ export async function fetchCommand(
   const cwd = options.cwd || process.cwd();
   const results: FetchResult[] = [];
 
-  const canModifyFiles = await checkFileModificationPermission(
-    cwd,
-    options.allowModifications,
-  );
-
-  if (canModifyFiles) {
-    const gitignoreUpdated = await ensureGitignore(cwd);
-    if (gitignoreUpdated) {
-      console.log("✓ Added opensrc/ to .gitignore");
-    }
-
-    const tsconfigUpdated = await ensureTsconfigExclude(cwd);
-    if (tsconfigUpdated) {
-      console.log("✓ Added opensrc/ to tsconfig.json exclude");
-    }
-  }
-
   for (const spec of packages) {
     const inputType = detectInputType(spec);
 
@@ -330,7 +266,7 @@ export async function fetchCommand(
   if (successful.length > 0) {
     console.log("\nSource code available at:");
     for (const result of successful) {
-      console.log(`  ${result.package} → opensrc/${result.path}`);
+      console.log(`  ${result.package} → node_modules/.gitchamber/${result.path}`);
     }
   }
 

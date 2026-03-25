@@ -69,7 +69,7 @@ export async function listCommand(options: ListOptions = {}): Promise<void> {
       });
 
       console.log(`  ${source.name}@${source.version}`);
-      console.log(`    Path: opensrc/${source.path}`);
+      console.log(`    Path: node_modules/.gitchamber/${source.path}`);
       console.log(`    Fetched: ${formattedDate}`);
       console.log("");
     }
@@ -88,7 +88,7 @@ export async function listCommand(options: ListOptions = {}): Promise<void> {
       });
 
       console.log(`  ${source.name}@${source.version}`);
-      console.log(`    Path: opensrc/${source.path}`);
+      console.log(`    Path: node_modules/.gitchamber/${source.path}`);
       console.log(`    Fetched: ${formattedDate}`);
       console.log("");
     }

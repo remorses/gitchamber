@@ -9,16 +9,16 @@ import type {
   Registry,
 } from "../types.ts";
 
-const OPENSRC_DIR = "opensrc";
+const BASE_DIR = "node_modules/.gitchamber";
 const REPOS_DIR = "repos";
 const SOURCES_FILE = "sources.json";
 
-export function getOpensrcDir(cwd: string = process.cwd()): string {
-  return join(cwd, OPENSRC_DIR);
+export function getBaseDir(cwd: string = process.cwd()): string {
+  return join(cwd, BASE_DIR);
 }
 
 export function getReposDir(cwd: string = process.cwd()): string {
-  return join(getOpensrcDir(cwd), REPOS_DIR);
+  return join(getBaseDir(cwd), REPOS_DIR);
 }
 
 /**
@@ -84,7 +84,7 @@ async function readSourcesJson(cwd: string): Promise<{
   packages?: PackageEntry[];
   repos?: RepoEntry[];
 } | null> {
-  const sourcesPath = join(getOpensrcDir(cwd), SOURCES_FILE);
+  const sourcesPath = join(getBaseDir(cwd), SOURCES_FILE);
 
   if (!existsSync(sourcesPath)) return null;
 
@@ -376,7 +376,7 @@ export async function removePackageSource(
   let repoRemoved = false;
 
   if (otherPackagesUsingSameRepo.length === 0) {
-    const repoPath = join(getOpensrcDir(cwd), pkgRepoPath);
+    const repoPath = join(getBaseDir(cwd), pkgRepoPath);
     if (existsSync(repoPath)) {
       await rm(repoPath, { recursive: true, force: true });
       repoRemoved = true;
@@ -409,9 +409,9 @@ async function cleanupEmptyParentDirs(
   if (parts.length < 4) return;
 
   const { readdir } = await import("fs/promises");
-  const opensrcDir = getOpensrcDir(cwd);
+  const baseDir = getBaseDir(cwd);
 
-  const ownerDir = join(opensrcDir, parts[0]!, parts[1]!, parts[2]!);
+  const ownerDir = join(baseDir, parts[0]!, parts[1]!, parts[2]!);
   try {
     const ownerContents = await readdir(ownerDir);
     if (ownerContents.length === 0) {
@@ -419,7 +419,7 @@ async function cleanupEmptyParentDirs(
     }
   } catch {}
 
-  const hostDir = join(opensrcDir, parts[0]!, parts[1]!);
+  const hostDir = join(baseDir, parts[0]!, parts[1]!);
   try {
     const hostContents = await readdir(hostDir);
     if (hostContents.length === 0) {

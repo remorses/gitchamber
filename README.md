@@ -1,182 +1,85 @@
-<div align='center' className='w-full'>
-    <br/>
-    <br/>
-    <br/>
-    <h1>gitchamber</h1>
-    <p>search and read files in GitHub repositories without worrying about rate limits</p>
-    <br/>
-    <br/>
-</div>
+# gitchamber
 
-High-performance GitHub repository caching service built with Cloudflare Workers and Durable Objects. Provides instant file access, full-text search, and REST API for GitHub repositories.
+Fetch source code for packages to give coding agents deeper context.
+
+Downloads the full repository source for npm, PyPI, or crates.io packages (and GitHub/GitLab repos) into `node_modules/.gitchamber/` so agents can read the actual implementation, not just type declarations.
+
+## Install
+
+```bash
+npm install -g gitchamber
+```
 
 ## Usage
 
-Add to your `CLAUDE.md` or `AGENTS.md`
+```bash
+# npm packages
+gitchamber zod
+gitchamber @babel/core
+gitchamber react@18.2.0
 
-```md
-to read files in GitHub repos use https://gitchamber.com. It's a website that let you list, read and search files in public github repos.
+# PyPI packages
+gitchamber pypi:requests
+gitchamber pypi:flask==3.0.0
 
-To see how to use gitchamber ALWAYS do `curl -s https://gitchamber.com` first.
+# crates.io
+gitchamber crates:serde
+gitchamber crates:tokio@1.35.0
+
+# GitHub repos
+gitchamber vercel/ai
+gitchamber facebook/react#main
+gitchamber https://github.com/denoland/deno
 ```
 
-## Features
+Source code ends up in `node_modules/.gitchamber/repos/<host>/<owner>/<repo>/`.
 
-- Instant file access via repository caching
-- Full-text search using SQLite FTS
-- Configurable TTL with automatic cache refresh
-- Global edge deployment via Cloudflare Workers
-- Per-repository isolation using Durable Objects
-- Data is replicated in each continent. It's fast in every region
-
-
-## Architecture
-
-Two-tier system:
-
-1. Worker router handles request routing
-2. Durable Object (RepoCache) manages per-repository caching and storage
-
-When accessed, repositories are downloaded as tar.gz archives from GitHub, extracted, and stored in SQLite with FTS indexing. Cache refreshes based on configurable TTL (default: 6 hours). Data is automatically cleaned up after 24 hours of inactivity.
-
-## API Endpoints
-
-### List Files
-
-```
-GET https://gitchamber.com/repos/:owner/:repo/:branch/files
-```
-
-Returns JSON array of all file paths.
-
-### Get File Content
-
-```
-GET https://gitchamber.com/repos/:owner/:repo/:branch/files/*filepath[?showLineNumbers=true&start=N&end=M]
-```
-
-Returns file content. Optional parameters:
-
-- `showLineNumbers`: Add line numbers
-- `start`: Start line number
-- `end`: End line number (defaults to start+49 if only start provided)
-
-### Search Repository
-
-```
-GET https://gitchamber.com/repos/:owner/:repo/:branch/search/*query
-```
-
-Full-text search returning markdown-formatted results with file paths, snippets, and line numbers.
-
-## Usage Examples
-
-- [https://gitchamber.com/repos/remorses/gitchamber/main/files](https://gitchamber.com/repos/remorses/gitchamber/main/files)
-- [https://gitchamber.com/repos/remorses/gitchamber/main/files/package.json?start=5&end=50&showLineNumbers=true](https://gitchamber.com/repos/remorses/gitchamber/main/files/package.json?start=5&end=50&showLineNumbers=true)
-- [https://gitchamber.com/repos/remorses/gitchamber/main/search/cloudflare](https://gitchamber.com/repos/remorses/gitchamber/main/search/cloudflare)
-
-## Development
-
-Prerequisites: Node.js 18+, pnpm, Wrangler CLI
+## Commands
 
 ```bash
-git clone https://github.com/your-username/gitchamber.git
-cd gitchamber
-pnpm install
-pnpm run deployment
+# Fetch one or more packages/repos
+gitchamber zod react vercel/ai
+
+# List everything that's been fetched
+gitchamber list
+gitchamber list --json
+
+# Remove specific packages or repos
+gitchamber remove zod
+gitchamber rm vercel/ai
+
+# Remove everything
+gitchamber clean
+gitchamber clean --npm      # only npm packages
+gitchamber clean --repos    # only repos
 ```
 
-## Configuration
+## How it works
 
-Environment variables in `wrangler.jsonc`:
+1. Resolves the package through its registry API (npm registry, PyPI JSON API, crates.io API)
+2. Extracts the `repository` URL from the package metadata
+3. Shallow-clones (`git clone --depth 1`) the repo at the matching version tag
+4. Strips the `.git` directory to save space
+5. Tracks everything in `node_modules/.gitchamber/sources.json`
 
-```jsonc
-{
-  "vars": {
-    "GITHUB_TOKEN": "", // Optional: 5K req/h limit vs 60 req/h
-    "CACHE_TTL_MS": "21600000", // 6 hours default
-  },
-}
-```
+For npm packages, gitchamber detects the installed version from `node_modules`, lockfiles (`package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`), or `package.json` -- so the source matches what you actually have installed.
 
-## Why Use GitChamber Instead of WebFetch
+## Why `node_modules/.gitchamber/`
 
-GitChamber offers several key advantages over the traditional WebFetch tool for accessing GitHub repositories:
+This is a fork of [opensrc](https://github.com/vercel-labs/opensrc) that stores source code in `node_modules/.gitchamber/` instead of `opensrc/`.
 
-- **Always Fresh Content**: Never get stale information - GitChamber automatically refreshes cached content based on configurable TTL, ensuring you always see the latest version of repository files
-- **Native Markdown Support**: Files are already in markdown format, eliminating the need to convert HTML back to markdown, preserving original formatting and structure
-- **Access to Implementation Files**: Using custom glob patterns, you can retrieve actual source code files (.js, .ts, .py, etc.), not just documentation
-- **Context-Aware Pagination**: Supports line-based pagination with `start` and `end` parameters to prevent LLM context overflow - Claude and other LLMs can efficiently process large files in chunks
-- **Precise Search**: Uses exact string matching instead of imprecise fuzzy or semantic search, ensuring you find exactly what you're looking for with full-text search capabilities via SQLite FTS
-- **Optimized for LLMs**: Purpose-built for AI agents and LLMs like Claude that need structured, reliable access to repository contents
+Storing inside `node_modules/` is better because:
 
-## Tech Stack
+- **Already gitignored.** Every project already ignores `node_modules/`. No need to modify `.gitignore` or prompt the user for permission.
+- **Vitest ignores it.** Vitest skips `node_modules/` by default. With `opensrc/`, test runners could pick up test files from fetched source code and try to run them.
+- **TypeScript ignores it.** `tsc` skips `node_modules/` by default. No need to add `opensrc` to `tsconfig.json` exclude.
+- **Other tools ignore it too.** Linters, formatters, bundlers, search indexers -- nearly every tool in the ecosystem already knows to skip `node_modules/`. Fetched source code is invisible to your toolchain by default.
+- **No accidental commits.** You can't accidentally `git add` fetched source code because `node_modules/` is always ignored.
 
-- Cloudflare Workers (runtime)
-- Durable Objects with SQLite (storage)
-- TypeScript
+The `opensrc/` approach requires modifying `.gitignore`, `tsconfig.json`, and potentially other tool configs. `node_modules/.gitchamber/` needs zero configuration.
 
-- Spiceflow (API framework)
-- Zod (validation)
+### Other changes from opensrc
 
-## Performance
-
-- Cold start: 200-500ms
-- Cached response: 10-50ms globally
-- Automatic cleanup after 24h inactivity
-
-## OpenAPI Schema
-
-The API follows OpenAPI 3.0 specification. Key endpoints:
-
-```yaml
-openapi: 3.0.0
-info:
-  title: GitChamber API
-  version: 1.0.0
-servers:
-  - url: https://gitchamber.com
-paths:
-  /repos/{owner}/{repo}/{branch}/files:
-    get:
-      summary: List repository files
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  type: string
-  /repos/{owner}/{repo}/{branch}/files/{filepath}:
-    get:
-      summary: Get file content
-      parameters:
-        - name: showLineNumbers
-          in: query
-          schema:
-            type: boolean
-        - name: start
-          in: query
-          schema:
-            type: integer
-        - name: end
-          in: query
-          schema:
-            type: integer
-      responses:
-        "200":
-          content:
-            text/plain:
-              schema:
-                type: string
-  /repos/{owner}/{repo}/{branch}/search/{query}:
-    get:
-      summary: Search repository content
-      responses:
-        "200":
-          content:
-            text/markdown:
-              schema:
-                type: string
-```
+- Removed all file modification logic (`.gitignore`, `tsconfig.json`, `AGENTS.md` editing)
+- Removed the `--modify` flag and permission prompt
+- Uses [goke](https://github.com/nicepkg/goke) instead of commander for the CLI framework
