@@ -83,3 +83,13 @@ The `opensrc/` approach requires modifying `.gitignore`, `tsconfig.json`, and po
 - Removed all file modification logic (`.gitignore`, `tsconfig.json`, `AGENTS.md` editing)
 - Removed the `--modify` flag and permission prompt
 - Uses [goke](https://github.com/nicepkg/goke) instead of commander for the CLI framework
+
+## Agent skill
+
+gitchamber ships with a [SKILL.md](./skills/gitchamber/SKILL.md) that teaches coding agents when and how to use it. Install it with the [`skills`](https://github.com/vercel-labs/skills) CLI:
+
+```bash
+npx skills add remorses/gitchamber
+```
+
+This works with any agent that supports the [Agent Skills](https://agentskills.io) standard (OpenCode, Claude Code, Cursor, Codex, Windsurf, etc.).

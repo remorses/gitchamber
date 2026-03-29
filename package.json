@@ -1,9 +1,12 @@
 {
   "name": "gitchamber",
   "version": "0.1.1",
-  "description": "Fetch source code for packages to give coding agents deeper context",
+  "description": "opensrc alternative that fetches package source code into node_modules/.gitchamber/ for coding agents",
   "type": "module",
-  "bin": "dist/cli.js",
+  "bin": {
+    "gitchamber": "dist/cli.js",
+    "chamber": "dist/cli.js"
+  },
   "files": [
     "src",
     "dist",
